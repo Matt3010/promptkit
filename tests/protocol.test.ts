@@ -51,6 +51,14 @@ describe("PromptKit protocol guards", () => {
         blocks: [{ type: "text", text: "done" }],
       }),
     ).toBe(true);
+    expect(
+      isPromptKitCommandResponse({
+        ok: true,
+        blocks: [],
+        clear: true,
+      }),
+    ).toBe(true);
+    expect(isPromptKitCommandResponse({ ok: true, blocks: [], clear: "yes" })).toBe(false);
     expect(isPromptKitCommandResponse({ ok: true, blocks: [{ type: "unknown" }] })).toBe(false);
 
     expect(
