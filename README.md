@@ -2,7 +2,7 @@
 
 PromptKit is a backend-agnostic web terminal UI for applications that want a small, command-driven interface without adopting a frontend framework.
 
-It is extracted from the interaction model used by Scatto: a responsive terminal rendered in the browser, with command history, completion, structured output and optional live events. PromptKit owns presentation only. The host application owns commands, authentication and business logic.
+It provides a responsive terminal rendered in the browser, with command history, completion, structured output and optional live events. PromptKit owns presentation only. The host application owns commands, authentication and business logic.
 
 ## Goals
 
@@ -29,9 +29,9 @@ The manifest describes the terminal rather than its business logic:
 
 ```json
 {
-  "name": "scatto",
+  "name": "example-app",
   "prompt": ">",
-  "commands": ["/start", "/stop", "/history", "/help"]
+  "commands": ["/status", "/list", "/help"]
 }
 ```
 
@@ -39,7 +39,7 @@ A command request is deliberately small:
 
 ```json
 {
-  "input": "/history"
+  "input": "/list"
 }
 ```
 
@@ -49,7 +49,7 @@ The response is a list of typed blocks:
 {
   "ok": true,
   "blocks": [
-    { "type": "text", "text": "Runs" },
+    { "type": "text", "text": "Items" },
     {
       "type": "table",
       "columns": ["Id", "Status"],
@@ -59,7 +59,7 @@ The response is a list of typed blocks:
 }
 ```
 
-PromptKit renders the blocks. It never needs to know what `/history`, `completed` or a Scatto run means.
+PromptKit renders the blocks. It never needs to know what `/list`, `completed` or any host-specific state means.
 
 ## V1 block types
 
@@ -118,7 +118,7 @@ Then open `http://127.0.0.1:4173` and try:
 /error
 ```
 
-The demo is intentionally application-neutral. It is the reference integration used to evolve PromptKit without requiring Scatto or Relay to be running.
+The demo is intentionally application-neutral. It is the reference integration used to evolve PromptKit without requiring an external consumer to be running.
 
 ## Quality gates
 
@@ -151,15 +151,10 @@ The release workflow:
 5. creates SHA-256 checksums;
 6. creates the GitHub Release and attaches the versioned artifacts.
 
-This keeps consumers pinned to an immutable PromptKit release rather than `master`. Python applications such as Scatto can vendor the release archive at build/package time and serve its static assets without requiring Node at runtime. TypeScript applications can consume the same version through the package interface when package publication is enabled later.
+This keeps consumers pinned to an immutable PromptKit release rather than `master`. Applications can vendor the release archive at build/package time and serve its static assets without requiring Node at runtime, or consume the package interface directly when appropriate.
 
 Creating a tag is therefore a publication action, not part of ordinary development. A release is never created automatically from a regular commit.
 
-## Consumers
-
-- **Scatto**: PromptKit V1 is the only embedded browser UI. Scatto currently vendors the immutable `v0.1.0` release and keeps its source provenance pinned in `promptkit.lock.json`.
-- **Relay**: planned consumer; use PromptKit as its administrative interface from the beginning.
-
 ## Status
 
-V1 foundation is in place: protocol, client, renderer, terminal controller, compatibility fixtures, reference demo, CI quality gates and versioned release automation. Scatto is fully migrated to PromptKit and no longer ships the previous legacy browser UI.
+V1 foundation is in place: protocol, client, renderer, terminal controller, compatibility fixtures, reference demo, CI quality gates and versioned release automation.
