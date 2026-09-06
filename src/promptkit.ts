@@ -147,6 +147,7 @@ export class PromptKit {
     try {
       const response = await this.#client.command(input);
       if (this.#destroyed) return;
+      if (response.clear === true) this.clear();
       this.write(response.blocks);
       if (response.state) this.#applyState(response.state);
     } catch (error) {
