@@ -1,0 +1,65 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "Tag version $TAG_VERSION does not match package.json version $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Verify
+        run: npm run verify
+
+      - name: Build release archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p release
+          cp LICENSE README.md release/
+          cp -R docs dist release/
+          tar -C release -czf "promptkit-${VERSION}.tar.gz" .
+          (cd release && zip -qr "../promptkit-${VERSION}.zip" .)
+          sha256sum "promptkit-${VERSION}.tar.gz" "promptkit-${VERSION}.zip" > "promptkit-${VERSION}.sha256"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            "promptkit-${VERSION}.tar.gz" \
+            "promptkit-${VERSION}.zip" \
+            "promptkit-${VERSION}.sha256" \
+            --title "PromptKit ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag
