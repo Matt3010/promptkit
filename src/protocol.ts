@@ -95,6 +95,8 @@ export interface PromptKitCommandResponse {
   ok: boolean;
   blocks: PromptKitBlock[];
   state?: Record<string, string | number | boolean | null>;
+  /** Clear previous output before rendering this response. */
+  clear?: boolean;
 }
 
 export interface PromptKitEvent {
@@ -120,6 +122,7 @@ export function isPromptKitManifest(value: unknown): value is PromptKitManifest 
 
 export function isPromptKitCommandResponse(value: unknown): value is PromptKitCommandResponse {
   if (!isRecord(value) || typeof value.ok !== "boolean" || !Array.isArray(value.blocks)) return false;
+  if (value.clear !== undefined && typeof value.clear !== "boolean") return false;
   return value.blocks.every(isPromptKitBlock);
 }
 
