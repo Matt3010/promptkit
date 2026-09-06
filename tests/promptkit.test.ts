@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PromptKitClient } from "../src/client.js";
 import type { PromptKitEvent } from "../src/protocol.js";
 import { PromptKit } from "../src/promptkit.js";
@@ -9,6 +9,10 @@ function json(body: unknown): Response {
     headers: { "content-type": "application/json" },
   });
 }
+
+afterEach(() => {
+  document.body.replaceChildren();
+});
 
 describe("PromptKit", () => {
   it("loads a manifest, completes a command and renders its response", async () => {
@@ -140,6 +144,7 @@ describe("PromptKit", () => {
     } as unknown as PromptKitClient;
 
     const root = document.createElement("div");
+    document.body.append(root);
     const kit = new PromptKit({ root, client, autofocus: true });
     await kit.start();
 
