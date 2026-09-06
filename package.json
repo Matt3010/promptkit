@@ -17,11 +17,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
     "demo": "npm run build && node examples/demo/server.mjs",
+    "demo:smoke": "node scripts/smoke-demo.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "verify": "npm run typecheck && npm run test:coverage && npm run build"
+    "verify": "npm run typecheck && npm run test:coverage && npm run build && npm run demo:smoke"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.2.4",
