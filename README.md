@@ -126,15 +126,40 @@ The demo is intentionally application-neutral. It is the reference integration u
 npm run verify
 ```
 
-The gate runs strict TypeScript checking, tests with coverage thresholds, and the production build. Canonical V1 payloads are also kept as compatibility fixtures under `tests/compatibility-v1.test.ts`.
+The gate runs strict TypeScript checking, tests with coverage thresholds, the production build, and a reference-demo smoke test. Canonical V1 payloads are also kept as compatibility fixtures under `tests/compatibility-v1.test.ts`.
 
 Project-wide compatibility rules live in `AGENTS.md`: breaking changes must never be introduced silently and must be communicated before implementation when unavoidable.
 
+## Versioned releases
+
+Normal pushes and pull requests only run verification. They never publish PromptKit.
+
+A GitHub Release is created only when an explicit semantic-version tag is pushed:
+
+```text
+v0.1.0
+v0.2.0
+v1.0.0
+```
+
+The release workflow:
+
+1. verifies that the tag version exactly matches `package.json`;
+2. runs the full `npm run verify` gate;
+3. builds the production `dist/` directory;
+4. packages `dist/`, `README.md`, `LICENSE` and protocol docs into `.zip` and `.tar.gz` archives;
+5. creates SHA-256 checksums;
+6. creates the GitHub Release and attaches the versioned artifacts.
+
+This keeps consumers pinned to an immutable PromptKit release rather than `master`. Python applications such as Scatto can vendor the release archive at build/package time and serve its static assets without requiring Node at runtime. TypeScript applications can consume the same version through the package interface when package publication is enabled later.
+
+Creating a tag is therefore a publication action, not part of ordinary development. A release is never created automatically from a regular commit.
+
 ## Planned consumers
 
-- **Scatto**: migrate the current embedded browser console to PromptKit without changing user-visible behavior.
+- **Scatto**: the non-breaking PromptKit V1 backend adapter is already integrated; the remaining milestone is switching the embedded browser UI to released PromptKit assets.
 - **Relay**: use PromptKit as its administrative interface from the beginning.
 
 ## Status
 
-V1 foundation: protocol, client, renderer, terminal controller, compatibility fixtures, reference demo and CI quality gates are in place. Scatto migration is the next integration milestone after the foundation is green.
+V1 foundation is in place: protocol, client, renderer, terminal controller, compatibility fixtures, reference demo, CI quality gates and versioned release automation. Scatto already exposes the PromptKit protocol alongside its legacy console without breaking existing routes.
