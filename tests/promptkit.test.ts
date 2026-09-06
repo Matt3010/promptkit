@@ -55,12 +55,13 @@ describe("PromptKit", () => {
     expect(() => kit.clear()).toThrow("destroyed");
   });
 
-  it("supports history navigation, blank input and clear", async () => {
+  it("supports history navigation, blank input and backend-requested clear", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(json({ name: "demo", commands: ["/one", "/only"] }))
+      .mockResolvedValueOnce(json({ name: "demo", subtitle: "/help", commands: ["/one", "/only", "/clear"] }))
       .mockResolvedValueOnce(json({ ok: true, blocks: [{ type: "text", text: "done" }] }))
-      .mockResolvedValueOnce(json({ ok: true, blocks: [{ type: "text", text: "second" }] }));
+      .mockResolvedValueOnce(json({ ok: true, blocks: [{ type: "text", text: "second" }] }))
+      .mockResolvedValueOnce(json({ ok: true, blocks: [], clear: true }));
 
     const root = document.createElement("div");
     const kit = new PromptKit({ root, client: new PromptKitClient({ fetch: fetchMock }), autofocus: false });
@@ -87,9 +88,12 @@ describe("PromptKit", () => {
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
     expect(input.value).toBe("");
 
-    kit.clear();
+    input.value = "/clear";
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await vi.waitFor(() => expect(root.textContent).not.toContain("second"));
     expect(root.textContent).toContain("demo");
-    expect(root.textContent).not.toContain("done");
+    expect(root.textContent).toContain("/help");
+    expect(root.textContent).not.toContain("> /clear");
   });
 
   it("applies command state and renders client failures", async () => {
