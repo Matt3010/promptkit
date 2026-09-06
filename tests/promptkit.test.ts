@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { PromptKitClient } from "../src/client.js";
+import type { PromptKitEvent } from "../src/protocol.js";
 import { PromptKit } from "../src/promptkit.js";
 
 function json(body: unknown): Response {
@@ -119,8 +120,10 @@ describe("PromptKit", () => {
   });
 
   it("subscribes to optional events, updates state and closes on destroy", async () => {
-    let eventHandler: ((event: { blocks?: never[]; state?: Record<string, string | number | boolean | null> }) => void) | null = null;
-    let errorHandler: (() => void) | null = null;
+    const handlers: {
+      event?: (event: PromptKitEvent) => void;
+      error?: (event: Event) => void;
+    } = {};
     const close = vi.fn();
 
     const client = {
@@ -129,9 +132,9 @@ describe("PromptKit", () => {
         events: { url: "/events" },
       }),
       command: vi.fn(),
-      events: vi.fn((_path: string, onEvent: typeof eventHandler, onError: typeof errorHandler) => {
-        eventHandler = onEvent;
-        errorHandler = onError;
+      events: vi.fn((_path: string, onEvent: (event: PromptKitEvent) => void, onError?: (event: Event) => void) => {
+        handlers.event = onEvent;
+        if (onError) handlers.error = onError;
         return close;
       }),
     } as unknown as PromptKitClient;
@@ -143,9 +146,9 @@ describe("PromptKit", () => {
     expect(root.dataset.connection).toBe("connected");
     expect(document.activeElement).toBe(root.querySelector("input"));
 
-    eventHandler?.({ state: { syncState: "idle" } });
+    handlers.event?.({ state: { syncState: "idle" } });
     expect(root.dataset.syncState).toBe("idle");
-    errorHandler?.();
+    handlers.error?.(new Event("error"));
     expect(root.dataset.connection).toBe("degraded");
 
     kit.destroy();
