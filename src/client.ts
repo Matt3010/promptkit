@@ -38,7 +38,7 @@ export class PromptKitClient {
   }
 
   public async manifest(signal?: AbortSignal): Promise<PromptKitManifest> {
-    const value = await this.#json(this.#manifestPath, { method: "GET", signal });
+    const value = await this.#json(this.#manifestPath, withSignal({ method: "GET" }, signal));
     if (!isPromptKitManifest(value)) {
       throw new PromptKitProtocolError("invalid PromptKit manifest");
     }
@@ -46,12 +46,17 @@ export class PromptKitClient {
   }
 
   public async command(input: string, signal?: AbortSignal): Promise<PromptKitCommandResponse> {
-    const value = await this.#json(this.#commandPath, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ input }),
-      signal,
-    });
+    const value = await this.#json(
+      this.#commandPath,
+      withSignal(
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ input }),
+        },
+        signal,
+      ),
+    );
     if (!isPromptKitCommandResponse(value)) {
       throw new PromptKitProtocolError("invalid PromptKit command response");
     }
@@ -94,6 +99,11 @@ export class PromptKitClient {
     if (!this.#baseUrl) return path;
     return `${this.#baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
   }
+}
+
+function withSignal(init: RequestInit, signal: AbortSignal | undefined): RequestInit {
+  if (signal) init.signal = signal;
+  return init;
 }
 
 function normalizeBaseUrl(value: string): string {
