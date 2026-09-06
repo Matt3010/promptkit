@@ -155,11 +155,11 @@ This keeps consumers pinned to an immutable PromptKit release rather than `maste
 
 Creating a tag is therefore a publication action, not part of ordinary development. A release is never created automatically from a regular commit.
 
-## Planned consumers
+## Consumers
 
-- **Scatto**: the non-breaking PromptKit V1 backend adapter is already integrated; the remaining milestone is switching the embedded browser UI to released PromptKit assets.
-- **Relay**: use PromptKit as its administrative interface from the beginning.
+- **Scatto**: PromptKit V1 is the only embedded browser UI. Scatto currently vendors the immutable `v0.1.0` release and keeps its source provenance pinned in `promptkit.lock.json`.
+- **Relay**: planned consumer; use PromptKit as its administrative interface from the beginning.
 
 ## Status
 
-V1 foundation is in place: protocol, client, renderer, terminal controller, compatibility fixtures, reference demo, CI quality gates and versioned release automation. Scatto already exposes the PromptKit protocol alongside its legacy console without breaking existing routes.
+V1 foundation is in place: protocol, client, renderer, terminal controller, compatibility fixtures, reference demo, CI quality gates and versioned release automation. Scatto is fully migrated to PromptKit and no longer ships the previous legacy browser UI.
