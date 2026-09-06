@@ -16,6 +16,7 @@
   "files": ["dist", "README.md", "docs"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "demo": "npm run build && node examples/demo/server.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
