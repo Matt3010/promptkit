@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  PROMPTKIT_PROTOCOL_VERSION,
   isPromptKitBlock,
   isPromptKitCommandResponse,
   isPromptKitEvent,
@@ -8,11 +7,9 @@ import {
 } from "../src/protocol.js";
 
 describe("PromptKit protocol guards", () => {
-  it("accepts a valid v2 manifest with default and variant themes", () => {
-    expect(PROMPTKIT_PROTOCOL_VERSION).toBe(2);
+  it("accepts a manifest with default and variant themes", () => {
     expect(
       isPromptKitManifest({
-        protocol: 2,
         name: "example",
         prompt: ">",
         subtitle: "/help for commands",
@@ -28,14 +25,12 @@ describe("PromptKit protocol guards", () => {
     ).toBe(true);
   });
 
-  it("rejects v1 and malformed manifests", () => {
-    expect(isPromptKitManifest({ name: "old" })).toBe(false);
-    expect(isPromptKitManifest({ protocol: 1, name: "old" })).toBe(false);
-    expect(isPromptKitManifest({ protocol: 2, name: 42 })).toBe(false);
-    expect(isPromptKitManifest({ protocol: 2, name: "x", commands: ["/ok", 3] })).toBe(false);
-    expect(isPromptKitManifest({ protocol: 2, name: "x", events: {} })).toBe(false);
-    expect(isPromptKitManifest({ protocol: 2, name: "x", theme: { default: { accent: 3 } } })).toBe(false);
-    expect(isPromptKitManifest({ protocol: 2, name: "x", theme: { variants: { warm: null } } })).toBe(false);
+  it("rejects malformed manifests", () => {
+    expect(isPromptKitManifest({ name: 42 })).toBe(false);
+    expect(isPromptKitManifest({ name: "x", commands: ["/ok", 3] })).toBe(false);
+    expect(isPromptKitManifest({ name: "x", events: {} })).toBe(false);
+    expect(isPromptKitManifest({ name: "x", theme: { default: { accent: 3 } } })).toBe(false);
+    expect(isPromptKitManifest({ name: "x", theme: { variants: { warm: null } } })).toBe(false);
   });
 
   it.each([
