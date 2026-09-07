@@ -3,7 +3,6 @@ import type {
   PromptKitBlock,
   PromptKitIndicator,
   PromptKitState,
-  PromptKitTone,
 } from "./protocol.js";
 
 export type PromptKitActionContext =
@@ -28,14 +27,12 @@ export interface PromptKitActionsOptions {
   document: Document;
   screen: HTMLElement;
   line: HTMLElement;
-  handlers?: Record<string, PromptKitActionHandler>;
+  handlers?: Record<string, PromptKitActionHandler> | undefined;
   applyResult: (result: PromptKitActionResult) => void;
 }
 
 interface DropCandidate {
   definition: PromptKitActionDefinition;
-  accept: string[];
-  multiple: boolean;
 }
 
 export class PromptKitActions {
@@ -80,7 +77,8 @@ export class PromptKitActions {
 
     for (const indicator of indicators) {
       if (indicator.active === false) continue;
-      const actionable = indicator.action !== undefined && this.#handlers[indicator.action] !== undefined;
+      const actionId = indicator.action;
+      const actionable = actionId !== undefined && this.#handlers[actionId] !== undefined;
       const element = actionable
         ? this.#document.createElement("button")
         : this.#document.createElement("span");
@@ -89,11 +87,11 @@ export class PromptKitActions {
       if (indicator.pulse === true) element.classList.add("pk-indicator-pulse");
       element.textContent = `[${indicator.label}]`;
 
-      if (element instanceof HTMLButtonElement && indicator.action !== undefined) {
+      if (element instanceof HTMLButtonElement && actionId !== undefined) {
         element.type = "button";
-        element.dataset.action = indicator.action;
+        element.dataset.action = actionId;
         element.addEventListener("click", () => {
-          void this.run(indicator.action as string, { trigger: "indicator", indicator });
+          void this.run(actionId, { trigger: "indicator", indicator });
         });
       }
 
@@ -133,11 +131,9 @@ export class PromptKitActions {
       const candidates: DropCandidate[] = [];
       for (const trigger of definition.triggers ?? []) {
         if (trigger.type !== "drop") continue;
-        const multiple = trigger.multiple ?? false;
-        if (!multiple && files.length > 1) continue;
-        const accept = trigger.accept ?? [];
-        if (!files.every((file) => matchesAccept(file, accept))) continue;
-        candidates.push({ definition, accept, multiple });
+        if (!(trigger.multiple ?? false) && files.length > 1) continue;
+        if (!files.every((file) => matchesAccept(file, trigger.accept ?? []))) continue;
+        candidates.push({ definition });
       }
       return candidates;
     });
@@ -228,8 +224,4 @@ function matchesAccept(file: File, accept: string[]): boolean {
     if (rule.includes("/")) return mime === rule;
     return name === rule;
   });
-}
-
-export function toneClass(tone: PromptKitTone | undefined): string {
-  return `pk-tone-${tone ?? "primary"}`;
 }
