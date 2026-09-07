@@ -260,7 +260,7 @@ export class PromptKit {
     return this.#focusScope === "document" ? this.#document : this.#screen;
   }
 
-  #focusFromSurface = (event: MouseEvent): void => {
+  #focusFromSurface = (event: Event): void => {
     const selection = this.#document.getSelection();
     if (selection && !selection.isCollapsed) return;
     if (event.target === this.#input) return;
