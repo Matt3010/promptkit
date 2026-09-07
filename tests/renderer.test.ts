@@ -85,14 +85,33 @@ describe("PromptKitRenderer", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:promptkit");
   });
 
-  it("applies only supplied theme variables and accepts an empty theme", () => {
+  it("merges variants over defaults and resets stale variant values", () => {
     const renderer = new PromptKitRenderer({ document });
     const host = document.createElement("div");
-    renderer.applyTheme(host, undefined);
-    renderer.applyTheme(host, { accent: "#fff", danger: "#f00" });
+    const theme = {
+      default: { accent: "#fff", accentMuted: "#aaa", danger: "#f00" },
+      variants: {
+        warm: { accent: "#f90", warning: "#fc0" },
+        cool: { accent: "#09f" },
+      },
+    };
 
-    expect(host.style.getPropertyValue("--pk-accent")).toBe("#fff");
+    expect(renderer.applyTheme(host, theme, "warm")).toBe("warm");
+    expect(host.style.getPropertyValue("--pk-accent")).toBe("#f90");
+    expect(host.style.getPropertyValue("--pk-accent-muted")).toBe("#aaa");
+    expect(host.style.getPropertyValue("--pk-warning")).toBe("#fc0");
+
+    expect(renderer.applyTheme(host, theme, "cool")).toBe("cool");
+    expect(host.style.getPropertyValue("--pk-accent")).toBe("#09f");
+    expect(host.style.getPropertyValue("--pk-warning")).toBe("");
     expect(host.style.getPropertyValue("--pk-danger")).toBe("#f00");
-    expect(host.style.getPropertyValue("--pk-background")).toBe("");
+
+    expect(renderer.applyTheme(host, theme, "missing")).toBeNull();
+    expect(host.style.getPropertyValue("--pk-accent")).toBe("#fff");
+    expect(host.style.getPropertyValue("--pk-warning")).toBe("");
+
+    expect(renderer.applyTheme(host, undefined)).toBeNull();
+    expect(host.style.getPropertyValue("--pk-accent")).toBe("");
+    expect(host.style.getPropertyValue("--pk-danger")).toBe("");
   });
 });
