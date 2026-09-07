@@ -97,6 +97,25 @@ Unknown block types are rejected by the V1 protocol validator. New block types c
 - which commands are advertised;
 - which events are emitted.
 
+## Interaction options
+
+PromptKit keeps conservative defaults for compatibility while allowing a host to opt into terminal interaction details when needed:
+
+```ts
+new PromptKit({
+  root,
+  focusScope: "document",
+  disableInputWhileExecuting: false,
+  trimCommandInput: false,
+});
+```
+
+- `focusScope` defaults to `"screen"`; `"document"` focuses the prompt after non-interactive clicks anywhere in the document, while preserving text selection and interactive controls.
+- `disableInputWhileExecuting` defaults to `true`; set it to `false` when the terminal should remain writable while a command request is still in flight.
+- `trimCommandInput` defaults to `true`; set it to `false` when leading and trailing spaces are part of the host command contract. Blank input is still ignored.
+
+Command completion refreshes when text changes or the caret moves, and browser autocorrection is disabled on the command input so mobile keyboards do not rewrite terminal commands.
+
 ## Reference demo
 
 The repository includes a zero-dependency Node reference backend that implements the PromptKit protocol and exercises every initial block type plus SSE events.
@@ -138,6 +157,7 @@ A GitHub Release is created only when an explicit semantic-version tag is pushed
 
 ```text
 v0.1.0
+v0.1.1
 v0.2.0
 v1.0.0
 ```
