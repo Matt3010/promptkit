@@ -1,6 +1,6 @@
 {
   "name": "@matt3010/promptkit",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Backend-agnostic web terminal UI with a small structured protocol.",
   "type": "module",
@@ -11,21 +11,29 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./browser": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/promptkit.browser.js"
+    },
     "./styles.css": "./dist/styles.css"
   },
   "files": ["dist", "README.md", "docs"],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "build": "npm run build:modules && npm run build:browser",
+    "build:modules": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "build:browser": "esbuild src/index.ts --bundle --format=esm --platform=browser --target=es2022 --outfile=dist/promptkit.browser.js",
+    "browser:smoke": "node scripts/smoke-browser-bundle.mjs",
     "demo": "npm run build && node examples/demo/server.mjs",
     "demo:smoke": "node scripts/smoke-demo.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "verify": "npm run typecheck && npm run test:coverage && npm run build && npm run demo:smoke"
+    "verify": "npm run typecheck && npm run test:coverage && npm run build && npm run browser:smoke && npm run demo:smoke"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.2.4",
+    "esbuild": "0.28.2",
     "happy-dom": "^18.0.1",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
