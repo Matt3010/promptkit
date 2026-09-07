@@ -1,7 +1,7 @@
 export { PromptKitClient, PromptKitProtocolError } from "./client.js";
 export type { PromptKitClientOptions } from "./client.js";
 export { PromptKit } from "./promptkit.js";
-export type { PromptKitOptions } from "./promptkit.js";
+export type { PromptKitFocusScope, PromptKitOptions } from "./promptkit.js";
 export {
   isPromptKitBlock,
   isPromptKitCommandResponse,
