@@ -155,6 +155,14 @@ This keeps consumers pinned to an immutable PromptKit release rather than `maste
 
 Creating a tag is therefore a publication action, not part of ordinary development. A release is never created automatically from a regular commit.
 
+## GitHub Pages
+
+The project Pages site is release-backed rather than `master`-backed. Whenever a semantic-version GitHub Release is published, the Pages workflow downloads that release's versioned archive and checksum, verifies the archive, and deploys the exact released `dist/` assets with a static interactive demo.
+
+The workflow can also be run manually for an existing release tag. This is useful for bootstrapping the site or redeploying a known release without rebuilding it from mutable source.
+
+GitHub Pages must be configured once with **Settings → Pages → Source → GitHub Actions**. After that one-time repository setting, future releases update the site automatically.
+
 ## Status
 
-V1 foundation is in place: protocol, client, renderer, terminal controller, compatibility fixtures, reference demo, CI quality gates and versioned release automation.
+V1 foundation is in place: protocol, client, renderer, terminal controller, compatibility fixtures, reference demo, CI quality gates, versioned release automation and release-backed GitHub Pages deployment.

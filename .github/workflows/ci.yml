@@ -24,3 +24,6 @@ jobs:
 
       - name: Verify
         run: npm run verify
+
+      - name: Pages asset syntax
+        run: node --check site/demo.js
