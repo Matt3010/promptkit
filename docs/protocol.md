@@ -14,6 +14,20 @@ Returns terminal metadata.
   "subtitle": "/help for commands",
   "prompt": ">",
   "commands": ["/status", "/list", "/help"],
+  "actions": [
+    {
+      "id": "import-data",
+      "label": "import data",
+      "tone": "special",
+      "triggers": [
+        {
+          "type": "drop",
+          "accept": [".json", "application/json"],
+          "multiple": false
+        }
+      ]
+    }
+  ],
   "events": { "url": "/tui/events" },
   "theme": {
     "default": {
@@ -32,50 +46,29 @@ Returns terminal metadata.
         "accentMuted": "#ab7a44"
       }
     }
-  },
-  "actions": [
-    {
-      "id": "import-data",
-      "label": "import data",
-      "tone": "special",
-      "triggers": [
-        {
-          "type": "drop",
-          "accept": [".json", "text/csv"],
-          "multiple": true
-        }
-      ]
-    }
-  ]
+  }
 }
 ```
 
-Only `name` is required. `commands` drive client-side completion; they do not authorize or implement commands. `theme.default` defines the base palette, while `theme.variants` declares named visual variants. PromptKit does not attach business meaning to variant names.
+Only `name` is required. `commands` drive client-side completion; they do not authorize or implement commands. `theme.default` defines the base palette, while `theme.variants` declares named visual variants. PromptKit does not attach business meaning to variant or action names.
 
-`actions` declares presentation-level ways to trigger host actions. The action implementation itself is registered by the host in the PromptKit constructor and is not part of the wire protocol.
+`actions` declares optional presentation triggers. The host must separately register the implementation for each action id in the PromptKit constructor. Declaring an action in the manifest never grants it behavior on its own.
 
-### Action definitions
+### Drop action trigger
 
-Each action definition has:
-
-- `id`: required stable action identifier;
-- `label`: optional user-facing label;
-- `tone`: optional semantic tone;
-- `triggers`: optional list of supported triggers.
-
-The first supported trigger is `drop`:
+The first generic action trigger is `drop`:
 
 ```json
 {
   "type": "drop",
   "accept": [".json", "application/json", "image/*"],
-  "multiple": false
+  "multiple": true
 }
 ```
 
-`accept` entries can be file extensions, exact MIME types, MIME wildcards, or exact filenames. An omitted or empty `accept` accepts any file. `multiple` defaults to `false`.
+`accept` may contain file extensions, exact MIME types, MIME wildcards, or exact file names. An empty or omitted `accept` accepts any file. `multiple` defaults to `false`.
 
-PromptKit only offers an action if its `id` has a registered host handler. When one drop action matches, it runs directly. When several match, PromptKit renders a terminal-style chooser. If none match, PromptKit renders a generic warning.
+If one registered action matches a drop, PromptKit invokes it immediately. If several match, PromptKit shows a terminal-style chooser. If none match, PromptKit renders a warning instead of guessing application behavior.
 
 ## `POST /tui/command`
 
@@ -102,7 +95,13 @@ Response:
   },
   "themeVariant": "active",
   "indicators": [
-    { "id": "connected", "label": "connected", "tone": "success" }
+    {
+      "id": "sync",
+      "label": "sync",
+      "tone": "info",
+      "pulse": true,
+      "action": "open-sync"
+    }
   ]
 }
 ```
@@ -116,20 +115,7 @@ The backend chooses the blocks. The client does not infer tables, errors or down
 - `null`: return to the default theme;
 - an unknown string: safely fall back to the default theme.
 
-`indicators` is also optional. When present it replaces the complete current indicator set. Each indicator has a required `id` and `label`, plus optional `tone`, `active`, `pulse` and `action` fields.
-
-```json
-{
-  "id": "sync",
-  "label": "sync",
-  "tone": "info",
-  "active": true,
-  "pulse": true,
-  "action": "toggle-sync"
-}
-```
-
-`active: false` omits the indicator. `pulse: true` uses the standard PromptKit activity animation. `action` optionally links the indicator to a host action id; it is interactive only when the host registered a handler for that id.
+`indicators` is optional. When present, it replaces the complete visible indicator set. An indicator contains an `id` and `label`, may define a semantic `tone`, may set `active: false` to stay hidden, may set `pulse: true`, and may reference a host-registered `action` id. Indicators remain generic presentation state; PromptKit does not assign business meaning to their ids or labels.
 
 An unsuccessful command may still return HTTP 200 with `ok: false` when the command was parsed and deliberately rejected. Transport, authentication and malformed-protocol failures should use the appropriate non-2xx HTTP status.
 
@@ -232,23 +218,31 @@ can result in root attributes equivalent to:
 <div class="promptkit" data-mode="active" data-recording="true"></div>
 ```
 
-Theme selection is explicitly separate through `themeVariant`. Indicators are also explicitly separate presentation state and are not inferred from application-state keys.
+Theme selection is explicitly separate through `themeVariant`. Presentation indicators are explicitly separate through `indicators`.
 
-## Action results
+## Host action registry
 
-Host action handlers may return a presentation update using the same optional presentation fields as other PromptKit updates:
+Action definitions are declarative. Behavior is always registered host-side:
 
-```json
-{
-  "blocks": [{ "type": "text", "text": "import complete", "tone": "success" }],
-  "state": { "imported": true },
-  "themeVariant": "active",
-  "indicators": [{ "id": "ready", "label": "ready", "tone": "success" }],
-  "clear": false
-}
+```ts
+const kit = new PromptKit({
+  root,
+  actions: {
+    "import-data": async ({ files }) => {
+      await importData(files[0]);
+      return {
+        blocks: [{ type: "text", text: "imported", tone: "success" }],
+        indicators: [{ id: "last-import", label: "imported", tone: "success" }]
+      };
+    },
+    "open-sync": async ({ indicator }) => {
+      openSyncDetails(indicator.id);
+    }
+  }
+});
 ```
 
-Action results are host-side return values, not HTTP responses. PromptKit applies them through the same presentation pipeline used for commands and events.
+An action may return the same generic presentation fields used elsewhere: `blocks`, `state`, `themeVariant`, `indicators`, and `clear`. `runAction(id, payload?)` invokes the same registry manually with a `manual` trigger context.
 
 ## `GET /tui/events` (optional)
 
@@ -270,7 +264,7 @@ If `manifest.events.url` is present, PromptKit opens an SSE connection to that U
 }
 ```
 
-An event may contain blocks, state, a theme variant, indicators, `clear`, or any combination of them. Malformed SSE payloads are ignored rather than breaking the terminal.
+An event may contain blocks, state, a theme variant, indicators, `clear`, or any combination of them. The same presentation-update semantics are used for command responses, action results and SSE events. Malformed SSE payloads are ignored rather than breaking the terminal.
 
 ## Compatibility rule
 
