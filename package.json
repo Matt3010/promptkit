@@ -1,6 +1,6 @@
 {
   "name": "@matt3010/promptkit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Backend-agnostic web terminal UI with a small structured protocol.",
   "type": "module",

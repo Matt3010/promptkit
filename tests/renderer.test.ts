@@ -37,6 +37,20 @@ describe("PromptKitRenderer", () => {
     expect(host.querySelector("hr.pk-separator")).not.toBeNull();
   });
 
+  it("spans single-cell table rows across the widest row", () => {
+    const renderer = new PromptKitRenderer({ document });
+    const table = renderer.render({
+      type: "table",
+      rows: [["commands:"], ["/status", "show status", "extra"]],
+    });
+
+    const rows = table.querySelectorAll("tbody tr");
+    const title = rows[0]?.querySelector("td") as HTMLTableCellElement;
+    expect(title.textContent).toBe("commands:");
+    expect(title.colSpan).toBe(3);
+    expect(rows[1]?.querySelectorAll("td")).toHaveLength(3);
+  });
+
   it("renders downloads through the injected handler", () => {
     const onDownload = vi.fn();
     const renderer = new PromptKitRenderer({ document, onDownload });

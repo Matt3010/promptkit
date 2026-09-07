@@ -2,6 +2,8 @@ import { PromptKitClient, type PromptKitClientOptions } from "./client.js";
 import type { PromptKitBlock, PromptKitManifest } from "./protocol.js";
 import { PromptKitRenderer, type PromptKitRendererOptions } from "./renderer.js";
 
+export type PromptKitFocusScope = "screen" | "document";
+
 export interface PromptKitOptions {
   root: HTMLElement;
   client?: PromptKitClient;
@@ -9,6 +11,9 @@ export interface PromptKitOptions {
   renderer?: PromptKitRenderer;
   rendererOptions?: PromptKitRendererOptions;
   autofocus?: boolean;
+  focusScope?: PromptKitFocusScope;
+  disableInputWhileExecuting?: boolean;
+  trimCommandInput?: boolean;
 }
 
 export class PromptKit {
@@ -24,6 +29,9 @@ export class PromptKit {
   readonly #measure: HTMLSpanElement;
   readonly #line: HTMLDivElement;
   readonly #autofocus: boolean;
+  readonly #focusScope: PromptKitFocusScope;
+  readonly #disableInputWhileExecuting: boolean;
+  readonly #trimCommandInput: boolean;
 
   #manifest: PromptKitManifest | null = null;
   #historyIndex = 0;
@@ -36,6 +44,9 @@ export class PromptKit {
     this.#client = options.client ?? new PromptKitClient(options.clientOptions);
     this.#renderer = options.renderer ?? new PromptKitRenderer({ document: this.#document, ...options.rendererOptions });
     this.#autofocus = options.autofocus ?? true;
+    this.#focusScope = options.focusScope ?? "screen";
+    this.#disableInputWhileExecuting = options.disableInputWhileExecuting ?? true;
+    this.#trimCommandInput = options.trimCommandInput ?? true;
 
     this.#root.classList.add("promptkit");
     this.#root.replaceChildren();
@@ -56,6 +67,7 @@ export class PromptKit {
     this.#input.className = "pk-input";
     this.#input.autocomplete = "off";
     this.#input.autocapitalize = "none";
+    this.#input.setAttribute("autocorrect", "off");
     this.#input.spellcheck = false;
     this.#input.enterKeyHint = "send";
     this.#input.setAttribute("aria-label", "command");
@@ -73,9 +85,10 @@ export class PromptKit {
     this.#root.append(this.#screen);
 
     this.#input.addEventListener("keydown", this.#onKeyDown);
+    this.#input.addEventListener("keyup", this.#refreshSuggestion);
     this.#input.addEventListener("input", this.#refreshSuggestion);
     this.#input.addEventListener("click", this.#refreshSuggestion);
-    this.#screen.addEventListener("click", this.#focusFromScreen);
+    this.#focusTarget().addEventListener("click", this.#focusFromSurface);
   }
 
   public async start(): Promise<void> {
@@ -126,23 +139,25 @@ export class PromptKit {
     this.#closeEvents?.();
     this.#closeEvents = null;
     this.#input.removeEventListener("keydown", this.#onKeyDown);
+    this.#input.removeEventListener("keyup", this.#refreshSuggestion);
     this.#input.removeEventListener("input", this.#refreshSuggestion);
     this.#input.removeEventListener("click", this.#refreshSuggestion);
-    this.#screen.removeEventListener("click", this.#focusFromScreen);
+    this.#focusTarget().removeEventListener("click", this.#focusFromSurface);
     this.#root.replaceChildren();
     this.#root.classList.remove("promptkit");
   }
 
   async #execute(rawInput: string): Promise<void> {
-    const input = rawInput.trim();
-    if (!input) return;
+    const trimmedInput = rawInput.trim();
+    if (!trimmedInput) return;
+    const input = this.#trimCommandInput ? trimmedInput : rawInput;
 
     this.#writeEcho(rawInput);
     this.#history.push(rawInput);
     this.#historyIndex = this.#history.length;
     this.#input.value = "";
     this.#refreshSuggestion();
-    this.#input.disabled = true;
+    if (this.#disableInputWhileExecuting) this.#input.disabled = true;
 
     try {
       const response = await this.#client.command(input);
@@ -156,7 +171,7 @@ export class PromptKit {
       this.write([{ type: "text", text: message, tone: "danger" }]);
     } finally {
       if (!this.#destroyed) {
-        this.#input.disabled = false;
+        if (this.#disableInputWhileExecuting) this.#input.disabled = false;
         this.#input.focus();
       }
     }
@@ -241,9 +256,14 @@ export class PromptKit {
     }
   };
 
-  #focusFromScreen = (event: MouseEvent): void => {
+  #focusTarget(): HTMLDivElement | Document {
+    return this.#focusScope === "document" ? this.#document : this.#screen;
+  }
+
+  #focusFromSurface = (event: Event): void => {
     const selection = this.#document.getSelection();
     if (selection && !selection.isCollapsed) return;
+    if (event.target === this.#input) return;
     if (event.target instanceof HTMLButtonElement || event.target instanceof HTMLAnchorElement) return;
     this.#input.focus();
   };

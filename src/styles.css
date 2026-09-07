@@ -37,6 +37,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   -webkit-overflow-scrolling: touch;
+  cursor: text;
 }
 
 .pk-block {
