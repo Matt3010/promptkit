@@ -64,6 +64,11 @@ export interface PromptKitEventSource {
   transport?: PromptKitEventTransport;
 }
 
+export interface PromptKitBootstrapSource {
+  /** Idempotent GET endpoint returning the initial UI snapshot. */
+  url: string;
+}
+
 export interface PromptKitManifest {
   name: string;
   prompt?: string;
@@ -71,6 +76,8 @@ export interface PromptKitManifest {
   commands?: string[];
   theme?: PromptKitTheme;
   actions?: PromptKitActionDefinition[];
+  /** Optional initial snapshot loaded before the live event stream is opened. */
+  bootstrap?: PromptKitBootstrapSource;
   events?: PromptKitEventSource;
 }
 
@@ -155,16 +162,19 @@ export interface PromptKitCommandResponse {
   clear?: boolean;
 }
 
-export interface PromptKitEvent {
-  id?: string;
+export interface PromptKitSnapshot {
   blocks?: PromptKitBlock[];
   state?: PromptKitState;
   /** Switch to a named manifest theme variant. Null returns to the default theme. */
   themeVariant?: string | null;
   /** Replace the complete set of visible indicators. */
   indicators?: PromptKitIndicator[];
-  /** Clear previous output before rendering this event. */
+  /** Clear previous output before rendering this snapshot. */
   clear?: boolean;
+}
+
+export interface PromptKitEvent extends PromptKitSnapshot {
+  id?: string;
 }
 
 export function isPromptKitManifest(value: unknown): value is PromptKitManifest {
@@ -178,6 +188,7 @@ export function isPromptKitManifest(value: unknown): value is PromptKitManifest 
   if (value.actions !== undefined) {
     if (!Array.isArray(value.actions) || !value.actions.every(isActionDefinition)) return false;
   }
+  if (value.bootstrap !== undefined && !isBootstrapSource(value.bootstrap)) return false;
   if (value.events !== undefined && !isEventSource(value.events)) return false;
   return true;
 }
@@ -194,9 +205,8 @@ export function isPromptKitCommandResponse(value: unknown): value is PromptKitCo
   return true;
 }
 
-export function isPromptKitEvent(value: unknown): value is PromptKitEvent {
+export function isPromptKitSnapshot(value: unknown): value is PromptKitSnapshot {
   if (!isRecord(value)) return false;
-  if (value.id !== undefined && typeof value.id !== "string") return false;
   if (value.blocks !== undefined) {
     if (!Array.isArray(value.blocks) || !value.blocks.every(isPromptKitBlock)) return false;
   }
@@ -207,6 +217,11 @@ export function isPromptKitEvent(value: unknown): value is PromptKitEvent {
     if (!Array.isArray(value.indicators) || !value.indicators.every(isIndicator)) return false;
   }
   return true;
+}
+
+export function isPromptKitEvent(value: unknown): value is PromptKitEvent {
+  if (!isRecord(value) || !isPromptKitSnapshot(value)) return false;
+  return value.id === undefined || typeof value.id === "string";
 }
 
 export function isPromptKitBlock(value: unknown): value is PromptKitBlock {
@@ -252,6 +267,10 @@ export function isPromptKitBlock(value: unknown): value is PromptKitBlock {
     default:
       return false;
   }
+}
+
+function isBootstrapSource(value: unknown): value is PromptKitBootstrapSource {
+  return isRecord(value) && typeof value.url === "string" && value.url.length > 0;
 }
 
 function isEventSource(value: unknown): value is PromptKitEventSource {
