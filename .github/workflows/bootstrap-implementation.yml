@@ -1,0 +1,176 @@
+name: bootstrap-implementation
+
+on:
+  push:
+    branches:
+      - feat/bootstrap-initial-snapshot
+    paths:
+      - .github/workflows/bootstrap-implementation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/bootstrap-initial-snapshot
+
+      - name: Implement bootstrap contract
+        shell: python
+        run: |
+          from pathlib import Path
+          import json
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"expected fragment not found in {path}: {old[:80]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          replace(
+              "src/protocol.ts",
+              '''export interface PromptKitEventSource {\n  url: string;\n  /** Event transport. SSE is the current default and only built-in transport. */\n  transport?: PromptKitEventTransport;\n}\n\nexport interface PromptKitManifest {''',
+              '''export interface PromptKitEventSource {\n  url: string;\n  /** Event transport. SSE is the current default and only built-in transport. */\n  transport?: PromptKitEventTransport;\n}\n\nexport interface PromptKitBootstrapSource {\n  /** Idempotent GET endpoint returning the initial UI snapshot. */\n  url: string;\n}\n\nexport interface PromptKitManifest {''',
+          )
+          replace(
+              "src/protocol.ts",
+              '''  actions?: PromptKitActionDefinition[];\n  events?: PromptKitEventSource;\n}''',
+              '''  actions?: PromptKitActionDefinition[];\n  /** Optional initial snapshot loaded before the live event stream is opened. */\n  bootstrap?: PromptKitBootstrapSource;\n  events?: PromptKitEventSource;\n}''',
+          )
+          replace(
+              "src/protocol.ts",
+              '''export interface PromptKitEvent {\n  id?: string;''',
+              '''export interface PromptKitSnapshot {\n  blocks?: PromptKitBlock[];\n  state?: PromptKitState;\n  themeVariant?: string | null;\n  indicators?: PromptKitIndicator[];\n  clear?: boolean;\n}\n\nexport interface PromptKitEvent extends PromptKitSnapshot {\n  id?: string;''',
+          )
+          # Remove duplicated inherited fields from PromptKitEvent, leaving only id.
+          start = '''export interface PromptKitEvent extends PromptKitSnapshot {\n  id?: string;\n  blocks?: PromptKitBlock[];\n  state?: PromptKitState;\n  /** Switch to a named manifest theme variant. Null returns to the default theme. */\n  themeVariant?: string | null;\n  /** Replace the complete set of visible indicators. */\n  indicators?: PromptKitIndicator[];\n  /** Clear previous output before rendering this event. */\n  clear?: boolean;\n}'''
+          replace("src/protocol.ts", start, '''export interface PromptKitEvent extends PromptKitSnapshot {\n  id?: string;\n}''')
+          replace(
+              "src/protocol.ts",
+              '''  if (value.actions !== undefined) {\n    if (!Array.isArray(value.actions) || !value.actions.every(isActionDefinition)) return false;\n  }\n  if (value.events !== undefined && !isEventSource(value.events)) return false;''',
+              '''  if (value.actions !== undefined) {\n    if (!Array.isArray(value.actions) || !value.actions.every(isActionDefinition)) return false;\n  }\n  if (value.bootstrap !== undefined && !isBootstrapSource(value.bootstrap)) return false;\n  if (value.events !== undefined && !isEventSource(value.events)) return false;''',
+          )
+          replace(
+              "src/protocol.ts",
+              '''export function isPromptKitEvent(value: unknown): value is PromptKitEvent {\n  if (!isRecord(value)) return false;\n  if (value.id !== undefined && typeof value.id !== "string") return false;\n  if (value.blocks !== undefined) {''',
+              '''export function isPromptKitSnapshot(value: unknown): value is PromptKitSnapshot {\n  if (!isRecord(value)) return false;\n  if (value.blocks !== undefined) {''',
+          )
+          replace(
+              "src/protocol.ts",
+              '''  return true;\n}\n\nexport function isPromptKitBlock(value: unknown): value is PromptKitBlock {''',
+              '''  return true;\n}\n\nexport function isPromptKitEvent(value: unknown): value is PromptKitEvent {\n  if (!isPromptKitSnapshot(value)) return false;\n  return value.id === undefined || typeof value.id === "string";\n}\n\nexport function isPromptKitBlock(value: unknown): value is PromptKitBlock {''',
+          )
+          replace(
+              "src/protocol.ts",
+              '''function isEventSource(value: unknown): value is PromptKitEventSource {''',
+              '''function isBootstrapSource(value: unknown): value is PromptKitBootstrapSource {\n  return isRecord(value) && typeof value.url === "string" && value.url.length > 0;\n}\n\nfunction isEventSource(value: unknown): value is PromptKitEventSource {''',
+          )
+
+          replace(
+              "src/client.ts",
+              '''  isPromptKitCommandResponse,\n  isPromptKitEvent,\n  isPromptKitManifest,''',
+              '''  isPromptKitCommandResponse,\n  isPromptKitEvent,\n  isPromptKitManifest,\n  isPromptKitSnapshot,''',
+          )
+          replace(
+              "src/client.ts",
+              '''  type PromptKitCommandResponse,\n  type PromptKitEvent,''',
+              '''  type PromptKitBootstrapSource,\n  type PromptKitCommandResponse,\n  type PromptKitEvent,''',
+          )
+          replace(
+              "src/client.ts",
+              '''  type PromptKitManifest,\n} from "./protocol.js";''',
+              '''  type PromptKitManifest,\n  type PromptKitSnapshot,\n} from "./protocol.js";''',
+          )
+          replace(
+              "src/client.ts",
+              '''  public async command(input: string, signal?: AbortSignal): Promise<PromptKitCommandResponse> {''',
+              '''  public async bootstrap(source: PromptKitBootstrapSource, signal?: AbortSignal): Promise<PromptKitSnapshot> {\n    const value = await this.#json(source.url, withSignal({ method: "GET" }, signal));\n    if (!isPromptKitSnapshot(value)) {\n      throw new PromptKitProtocolError("invalid PromptKit bootstrap snapshot");\n    }\n    return value;\n  }\n\n  public async command(input: string, signal?: AbortSignal): Promise<PromptKitCommandResponse> {''',
+          )
+
+          replace(
+              "src/promptkit.ts",
+              '''  PromptKitState,\n} from "./protocol.js";''',
+              '''  PromptKitSnapshot,\n  PromptKitState,\n} from "./protocol.js";''',
+          )
+          replace(
+              "src/promptkit.ts",
+              '''export type PromptKitUpdate = PromptKitActionResult | PromptKitCommandResponse | PromptKitEvent;''',
+              '''export type PromptKitUpdate = PromptKitActionResult | PromptKitCommandResponse | PromptKitEvent | PromptKitSnapshot;''',
+          )
+          replace(
+              "src/promptkit.ts",
+              '''      this.#actions.configure(manifest.actions ?? []);\n      this.#refreshSuggestion();\n\n      if (manifest.events) {''',
+              '''      this.#actions.configure(manifest.actions ?? []);\n      this.#refreshSuggestion();\n\n      if (manifest.bootstrap) {\n        const snapshot = await this.#client.bootstrap(manifest.bootstrap);\n        if (this.#destroyed) return;\n        this.#applyUpdate(snapshot);\n      }\n\n      if (manifest.events) {''',
+          )
+          replace(
+              "src/promptkit.ts",
+              '''  /** Load the manifest and optional event stream. The terminal remains in loading state until ready() is called. */''',
+              '''  /** Load the manifest, optional bootstrap snapshot, then optional event stream. The terminal remains loading until ready(). */''',
+          )
+
+          replace(
+              "src/index.ts",
+              '''  isPromptKitManifest,\n} from "./protocol.js";''',
+              '''  isPromptKitManifest,\n  isPromptKitSnapshot,\n} from "./protocol.js";''',
+          )
+          replace(
+              "src/index.ts",
+              '''  PromptKitBlockUpdate,\n  PromptKitCommandRequest,''',
+              '''  PromptKitBlockUpdate,\n  PromptKitBootstrapSource,\n  PromptKitCommandRequest,''',
+          )
+          replace(
+              "src/index.ts",
+              '''  PromptKitManifest,\n  PromptKitState,''',
+              '''  PromptKitManifest,\n  PromptKitSnapshot,\n  PromptKitState,''',
+          )
+
+          pkg = Path("package.json")
+          data = json.loads(pkg.read_text())
+          data["version"] = "0.6.0"
+          pkg.write_text(json.dumps(data, indent=2) + "\n")
+
+      - name: Add bootstrap tests and docs
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path("tests/client.test.ts")
+          text = p.read_text()
+          marker = '''  it("passes AbortSignal only when supplied", async () => {'''
+          test = '''  it("loads an idempotent bootstrap snapshot with GET", async () => {\n    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(\n      response({ state: { mode: "ready" }, blocks: [{ type: "text", text: "initial" }] }),\n    );\n    const client = new PromptKitClient({ baseUrl: "https://example.test", fetch: fetchMock });\n\n    await expect(client.bootstrap({ url: "/tui/bootstrap" })).resolves.toEqual({\n      state: { mode: "ready" },\n      blocks: [{ type: "text", text: "initial" }],\n    });\n    expect(fetchMock).toHaveBeenCalledWith(\n      "https://example.test/tui/bootstrap",\n      expect.objectContaining({ method: "GET" }),\n    );\n  });\n\n  it("rejects an invalid bootstrap snapshot", async () => {\n    const client = new PromptKitClient({\n      fetch: vi.fn<typeof fetch>().mockResolvedValue(response({ blocks: [{ type: "wat" }] })),\n    });\n    await expect(client.bootstrap({ url: "/tui/bootstrap" })).rejects.toBeInstanceOf(PromptKitProtocolError);\n  });\n\n'''
+          if marker not in text:
+              raise SystemExit("client test marker not found")
+          p.write_text(text.replace(marker, test + marker, 1))
+
+          p = Path("tests/live-updates.test.ts")
+          text = p.read_text()
+          text = text.replace(
+              '''    expect(isPromptKitManifest({ name: "demo", events: { url: "/events" } })).toBe(true);''',
+              '''    expect(isPromptKitManifest({ name: "demo", bootstrap: { url: "/bootstrap" } })).toBe(true);\n    expect(isPromptKitManifest({ name: "demo", bootstrap: { url: "" } })).toBe(false);\n    expect(isPromptKitManifest({ name: "demo", bootstrap: "/bootstrap" })).toBe(false);\n    expect(isPromptKitManifest({ name: "demo", events: { url: "/events" } })).toBe(true);''',
+              1,
+          )
+          marker = '''  it("replaces keyed blocks in place and notifies the host after applying updates", async () => {'''
+          test = '''  it("applies bootstrap before opening the live event stream", async () => {\n    const root = document.createElement("main");\n    document.body.append(root);\n    const order: string[] = [];\n    const client = {\n      manifest: vi.fn().mockResolvedValue({\n        name: "demo",\n        bootstrap: { url: "/bootstrap" },\n        events: { url: "/events" },\n      }),\n      bootstrap: vi.fn().mockImplementation(async () => {\n        order.push("bootstrap");\n        return { state: { mode: "initial" }, blocks: [{ type: "text", text: "snapshot" }] };\n      }),\n      events: vi.fn().mockImplementation(() => {\n        order.push("events");\n        return vi.fn();\n      }),\n    } as unknown as PromptKitClient;\n    const kit = new PromptKit({ root, client });\n\n    await kit.start();\n\n    expect(order).toEqual(["bootstrap", "events"]);\n    expect(root.dataset.mode).toBe("initial");\n    kit.ready();\n    expect(root.textContent).toContain("snapshot");\n  });\n\n'''
+          if marker not in text:
+              raise SystemExit("live updates test marker not found")
+          p.write_text(text.replace(marker, test + marker, 1))
+
+          Path("docs/bootstrap.md").write_text('''# Bootstrap snapshot\n\nPromptKit hosts can optionally declare an idempotent initial snapshot endpoint in the manifest:\n\n```json\n{\n  "name": "example",\n  "bootstrap": { "url": "/tui/bootstrap" },\n  "events": { "url": "/tui/events" }\n}\n```\n\n`PromptKit.start()` loads the manifest, performs a `GET` to the bootstrap URL, applies the returned snapshot, and only then opens the live event stream. This ordering prevents an older initial snapshot from overwriting a newer live event.\n\nThe snapshot may contain the same UI update fields used by live updates: `blocks`, `state`, `themeVariant`, `indicators`, and `clear`. The bootstrap endpoint is optional; manifests without it keep the existing lifecycle unchanged.\n\nPromptKit intentionally does not retry commands to emulate bootstrap behavior. Commands are `POST` operations and may not be idempotent. Hosts that need initialization should expose an idempotent bootstrap `GET` instead.\n''')
+
+      - name: Verify
+        run: npm install --no-audit --no-fund && npm run verify
+
+      - name: Commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tests docs package.json package-lock.json
+          git commit -m "feat: add initial bootstrap snapshots"
+          git push origin HEAD:feat/bootstrap-initial-snapshot
