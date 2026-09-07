@@ -28,7 +28,7 @@ Returns terminal metadata.
       ]
     }
   ],
-  "events": { "url": "/tui/events" },
+  "events": { "url": "/tui/events", "transport": "sse" },
   "theme": {
     "default": {
       "accent": "#8b949e",
@@ -51,6 +51,8 @@ Returns terminal metadata.
 ```
 
 Only `name` is required. `commands` drive client-side completion; they do not authorize or implement commands. `theme.default` defines the base palette, while `theme.variants` declares named visual variants. PromptKit does not attach business meaning to variant or action names.
+
+`events.transport` is optional. Omitted and `"sse"` currently mean the same thing. The event payload is transport-independent so future transports can be added without changing `PromptKitEvent`.
 
 `actions` declares optional presentation triggers. The host must separately register the implementation for each action id in the PromptKit constructor. Declaring an action in the manifest never grants it behavior on its own.
 
@@ -121,6 +123,18 @@ An unsuccessful command may still return HTTP 200 with `ok: false` when the comm
 
 ## Blocks
 
+Every block may optionally define a stable `id`. `update` defaults to `"append"`; `"replace"` replaces the latest rendered block with the same id in place. This is useful for live status lines, progress, jobs and other continuously updated output without exposing PromptKit DOM internals to the host.
+
+```json
+{
+  "type": "text",
+  "id": "job-status",
+  "update": "replace",
+  "text": "processing 42%",
+  "tone": "info"
+}
+```
+
 ### Text
 
 ```json
@@ -172,6 +186,19 @@ A row containing a single cell spans the full table width, which is useful for s
   "filename": "config.json",
   "mediaType": "application/json",
   "content": "{}"
+}
+```
+
+`behavior` is optional and defaults to `"manual"`. `"auto"` starts the same download immediately and does not render a visible download control:
+
+```json
+{
+  "type": "download",
+  "label": "Export",
+  "filename": "export.csv",
+  "content": "a,b\n1,2",
+  "mediaType": "text/csv",
+  "behavior": "auto"
 }
 ```
 
@@ -244,15 +271,40 @@ const kit = new PromptKit({
 
 An action may return the same generic presentation fields used elsewhere: `blocks`, `state`, `themeVariant`, `indicators`, and `clear`. `runAction(id, payload?)` invokes the same registry manually with a `manual` trigger context.
 
+## Applying updates from other sources
+
+`kit.apply(update)` exposes the same presentation-update path used internally by commands, actions and events. A host can therefore feed PromptKit an update received from another integration without touching internal DOM nodes.
+
+`onUpdate` is an optional constructor callback invoked after an update has been applied:
+
+```ts
+const kit = new PromptKit({
+  root,
+  onUpdate(update) {
+    if (update.state?.running === false) stopHostWork();
+  }
+});
+```
+
+The callback is for host business reactions. PromptKit still owns rendering, state attributes, theme variants, indicators and clear semantics.
+
 ## `GET /tui/events` (optional)
 
-If `manifest.events.url` is present, PromptKit opens an SSE connection to that URL. Each `data:` payload is a JSON `PromptKitEvent`:
+If `manifest.events.url` is present, PromptKit opens the configured event transport. Today the built-in transport is SSE; omitting `transport` is equivalent to `"sse"`.
+
+Each SSE `data:` payload is a JSON `PromptKitEvent`:
 
 ```json
 {
   "id": "evt-1042",
   "blocks": [
-    { "type": "status", "label": "worker", "value": "idle" }
+    {
+      "type": "status",
+      "id": "worker-status",
+      "update": "replace",
+      "label": "worker",
+      "value": "idle"
+    }
   ],
   "state": {
     "worker": "idle"
@@ -264,7 +316,9 @@ If `manifest.events.url` is present, PromptKit opens an SSE connection to that U
 }
 ```
 
-An event may contain blocks, state, a theme variant, indicators, `clear`, or any combination of them. The same presentation-update semantics are used for command responses, action results and SSE events. Malformed SSE payloads are ignored rather than breaking the terminal.
+An event may contain blocks, state, a theme variant, indicators, `clear`, or any combination of them. The same presentation-update semantics are used for command responses, action results, public `apply()` calls and SSE events. Malformed SSE payloads are ignored rather than breaking the terminal.
+
+SSE is intentionally only the current transport, not part of event semantics. Future transports can carry the same `PromptKitEvent` shape.
 
 ## Compatibility rule
 
