@@ -1,4 +1,10 @@
-import type { PromptKitBlock, PromptKitTheme, PromptKitThemeTokens, PromptKitTone } from "./protocol.js";
+import type {
+  PromptKitBlock,
+  PromptKitDownloadBehavior,
+  PromptKitTheme,
+  PromptKitThemeTokens,
+  PromptKitTone,
+} from "./protocol.js";
 
 export interface PromptKitRendererOptions {
   document?: Document;
@@ -45,22 +51,38 @@ export class PromptKitRenderer {
   }
 
   public render(block: PromptKitBlock): HTMLElement {
+    let element: HTMLElement;
     switch (block.type) {
       case "text":
-        return this.#text(block.text, block.tone);
+        element = this.#text(block.text, block.tone);
+        break;
       case "table":
-        return this.#table(block.columns ?? [], block.rows, block.tone);
+        element = this.#table(block.columns ?? [], block.rows, block.tone);
+        break;
       case "code":
-        return this.#code(block.code, block.language, block.tone);
+        element = this.#code(block.code, block.language, block.tone);
+        break;
       case "status":
-        return this.#status(block.label, block.value, block.tone);
+        element = this.#status(block.label, block.value, block.tone);
+        break;
       case "progress":
-        return this.#progress(block.label, block.value, block.max ?? 100, block.tone);
+        element = this.#progress(block.label, block.value, block.max ?? 100, block.tone);
+        break;
       case "download":
-        return this.#download(block.label, block.filename, block.content, block.mediaType ?? "application/octet-stream");
+        element = this.#download(
+          block.label,
+          block.filename,
+          block.content,
+          block.mediaType ?? "application/octet-stream",
+          block.behavior ?? "manual",
+        );
+        break;
       case "separator":
-        return this.#separator();
+        element = this.#separator();
+        break;
     }
+    if (block.id) element.dataset.pkBlockId = block.id;
+    return element;
   }
 
   public renderAll(blocks: PromptKitBlock[]): DocumentFragment {
@@ -154,7 +176,21 @@ export class PromptKitRenderer {
     return element;
   }
 
-  #download(label: string, filename: string, content: string, mediaType: string): HTMLElement {
+  #download(
+    label: string,
+    filename: string,
+    content: string,
+    mediaType: string,
+    behavior: PromptKitDownloadBehavior,
+  ): HTMLElement {
+    if (behavior === "auto") {
+      this.#onDownload(filename, content, mediaType);
+      const marker = this.#document.createElement("div");
+      marker.className = "pk-block pk-download-auto";
+      marker.hidden = true;
+      return marker;
+    }
+
     const button = this.#document.createElement("button");
     button.type = "button";
     button.className = "pk-block pk-download";
