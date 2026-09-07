@@ -1,3 +1,10 @@
+export { PromptKitActions } from "./actions.js";
+export type {
+  PromptKitActionContext,
+  PromptKitActionHandler,
+  PromptKitActionResult,
+  PromptKitActionsOptions,
+} from "./actions.js";
 export { PromptKitClient, PromptKitProtocolError } from "./client.js";
 export type { PromptKitClientOptions } from "./client.js";
 export { PromptKit } from "./promptkit.js";
@@ -17,11 +24,16 @@ export type {
   CodeBlock,
   DownloadBlock,
   ProgressBlock,
+  PromptKitActionDefinition,
+  PromptKitActionTrigger,
   PromptKitBlock,
   PromptKitCommandRequest,
   PromptKitCommandResponse,
+  PromptKitDropActionTrigger,
   PromptKitEvent,
+  PromptKitIndicator,
   PromptKitManifest,
+  PromptKitState,
   PromptKitTheme,
   PromptKitThemeTokens,
   PromptKitTone,
