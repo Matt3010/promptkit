@@ -1,9 +1,22 @@
-import type { PromptKitBlock, PromptKitTone, PromptKitTheme } from "./protocol.js";
+import type { PromptKitBlock, PromptKitTheme, PromptKitThemeTokens, PromptKitTone } from "./protocol.js";
 
 export interface PromptKitRendererOptions {
   document?: Document;
   onDownload?: (filename: string, content: string, mediaType: string) => void;
 }
+
+const THEME_VARIABLES: Array<[keyof PromptKitThemeTokens, string]> = [
+  ["accent", "--pk-accent"],
+  ["accentMuted", "--pk-accent-muted"],
+  ["background", "--pk-background"],
+  ["foreground", "--pk-foreground"],
+  ["muted", "--pk-muted"],
+  ["danger", "--pk-danger"],
+  ["warning", "--pk-warning"],
+  ["success", "--pk-success"],
+  ["info", "--pk-info"],
+  ["special", "--pk-special"],
+];
 
 export class PromptKitRenderer {
   readonly #document: Document;
@@ -11,27 +24,24 @@ export class PromptKitRenderer {
 
   public constructor(options: PromptKitRendererOptions = {}) {
     this.#document = options.document ?? document;
-    this.#onDownload = options.onDownload ?? ((filename, content, mediaType) => download(this.#document, filename, content, mediaType));
+    this.#onDownload =
+      options.onDownload ??
+      ((filename, content, mediaType) => download(this.#document, filename, content, mediaType));
   }
 
-  public applyTheme(element: HTMLElement, theme: PromptKitTheme | undefined): void {
-    if (!theme) return;
-    const values: Array<[keyof PromptKitTheme, string]> = [
-      ["accent", "--pk-accent"],
-      ["accentMuted", "--pk-accent-muted"],
-      ["background", "--pk-background"],
-      ["foreground", "--pk-foreground"],
-      ["muted", "--pk-muted"],
-      ["danger", "--pk-danger"],
-      ["warning", "--pk-warning"],
-      ["success", "--pk-success"],
-      ["info", "--pk-info"],
-      ["special", "--pk-special"],
-    ];
-    for (const [key, variable] of values) {
-      const value = theme[key];
-      if (value !== undefined) element.style.setProperty(variable, value);
+  /** Apply the manifest default theme plus an optional named variant. Unknown variants fall back to default. */
+  public applyTheme(element: HTMLElement, theme: PromptKitTheme | undefined, variant: string | null = null): string | null {
+    const base = theme?.default ?? {};
+    const selected = variant === null ? undefined : theme?.variants?.[variant];
+    const appliedVariant = selected === undefined ? null : variant;
+
+    for (const [key, variable] of THEME_VARIABLES) {
+      const value = selected?.[key] ?? base[key];
+      if (value === undefined) element.style.removeProperty(variable);
+      else element.style.setProperty(variable, value);
     }
+
+    return appliedVariant;
   }
 
   public render(block: PromptKitBlock): HTMLElement {
