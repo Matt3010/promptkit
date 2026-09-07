@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PromptKitClient } from "../src/client.js";
-import type { PromptKitEvent } from "../src/protocol.js";
+import type { PromptKitCommandResponse, PromptKitEvent } from "../src/protocol.js";
 import { PromptKit } from "../src/promptkit.js";
 
 function json(body: unknown): Response {
@@ -180,5 +180,125 @@ describe("PromptKit", () => {
     input.setSelectionRange(input.value.length, input.value.length);
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     expect(input.value).toBe("/status");
+  });
+
+  it("refreshes completion after caret movement and disables mobile autocorrect", async () => {
+    const client = {
+      manifest: vi.fn().mockResolvedValue({ name: "demo", commands: ["/status"] }),
+      command: vi.fn(),
+      events: vi.fn(),
+    } as unknown as PromptKitClient;
+    const root = document.createElement("div");
+    const kit = new PromptKit({ root, client, autofocus: false });
+    await kit.start();
+
+    const input = root.querySelector(".pk-input") as HTMLInputElement;
+    const suggestion = root.querySelector(".pk-suggestion") as HTMLSpanElement;
+    expect(input.getAttribute("autocorrect")).toBe("off");
+
+    input.value = "/sta";
+    input.setSelectionRange(input.value.length, input.value.length);
+    input.dispatchEvent(new Event("input"));
+    expect(suggestion.textContent).toBe("tus");
+
+    input.setSelectionRange(2, 2);
+    input.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowLeft", bubbles: true }));
+    expect(suggestion.textContent).toBe("");
+
+    input.setSelectionRange(input.value.length, input.value.length);
+    input.dispatchEvent(new KeyboardEvent("keyup", { key: "End", bubbles: true }));
+    expect(suggestion.textContent).toBe("tus");
+  });
+
+  it("can focus from the whole document while keeping screen-only focus as the default", async () => {
+    const manifest = { name: "demo", commands: [] as string[] };
+    const firstRoot = document.createElement("div");
+    const outside = document.createElement("div");
+    document.body.append(firstRoot, outside);
+    const first = new PromptKit({
+      root: firstRoot,
+      client: { manifest: vi.fn().mockResolvedValue(manifest) } as unknown as PromptKitClient,
+      autofocus: false,
+    });
+    await first.start();
+    const firstInput = firstRoot.querySelector(".pk-input") as HTMLInputElement;
+    outside.click();
+    expect(document.activeElement).not.toBe(firstInput);
+    first.destroy();
+
+    const secondRoot = document.createElement("div");
+    document.body.append(secondRoot);
+    const second = new PromptKit({
+      root: secondRoot,
+      client: { manifest: vi.fn().mockResolvedValue(manifest) } as unknown as PromptKitClient,
+      autofocus: false,
+      focusScope: "document",
+    });
+    await second.start();
+    const secondInput = secondRoot.querySelector(".pk-input") as HTMLInputElement;
+    outside.click();
+    expect(document.activeElement).toBe(secondInput);
+
+    secondInput.blur();
+    const button = document.createElement("button");
+    document.body.append(button);
+    button.click();
+    expect(document.activeElement).not.toBe(secondInput);
+  });
+
+  it("keeps v0.1 defaults for trimming and input locking", async () => {
+    let resolveCommand: ((response: PromptKitCommandResponse) => void) | undefined;
+    const pending = new Promise<PromptKitCommandResponse>((resolve) => {
+      resolveCommand = resolve;
+    });
+    const command = vi.fn().mockReturnValue(pending);
+    const client = {
+      manifest: vi.fn().mockResolvedValue({ name: "demo", commands: [] }),
+      command,
+      events: vi.fn(),
+    } as unknown as PromptKitClient;
+    const root = document.createElement("div");
+    const kit = new PromptKit({ root, client, autofocus: false });
+    await kit.start();
+
+    const input = root.querySelector(".pk-input") as HTMLInputElement;
+    input.value = "  /status  ";
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+    expect(command).toHaveBeenCalledWith("/status");
+    expect(input.disabled).toBe(true);
+    resolveCommand?.({ ok: true, blocks: [] });
+    await vi.waitFor(() => expect(input.disabled).toBe(false));
+  });
+
+  it("can preserve raw command spacing and keep input available while commands run", async () => {
+    let resolveCommand: ((response: PromptKitCommandResponse) => void) | undefined;
+    const pending = new Promise<PromptKitCommandResponse>((resolve) => {
+      resolveCommand = resolve;
+    });
+    const command = vi.fn().mockReturnValue(pending);
+    const client = {
+      manifest: vi.fn().mockResolvedValue({ name: "demo", commands: [] }),
+      command,
+      events: vi.fn(),
+    } as unknown as PromptKitClient;
+    const root = document.createElement("div");
+    const kit = new PromptKit({
+      root,
+      client,
+      autofocus: false,
+      disableInputWhileExecuting: false,
+      trimCommandInput: false,
+    });
+    await kit.start();
+
+    const input = root.querySelector(".pk-input") as HTMLInputElement;
+    input.value = "  /status  ";
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+    expect(command).toHaveBeenCalledWith("  /status  ");
+    expect(input.disabled).toBe(false);
+    resolveCommand?.({ ok: true, blocks: [] });
+    await pending;
   });
 });
