@@ -1,0 +1,30 @@
+name: tag-v0.6.0
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/tag-v0.6.0.yml
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create v0.6.0 tag
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --tags origin refs/tags/v0.6.0 >/dev/null 2>&1; then
+            echo "v0.6.0 already exists"
+            exit 0
+          fi
+          git tag -a v0.6.0 cc7eb5df22bda746ab2b0e83f93524dbab929983 -m "PromptKit v0.6.0"
+          git push origin v0.6.0
