@@ -147,6 +147,8 @@ export interface PromptKitEvent {
   themeVariant?: string | null;
   /** Replace the complete set of visible indicators. */
   indicators?: PromptKitIndicator[];
+  /** Clear previous output before rendering this event. */
+  clear?: boolean;
 }
 
 export function isPromptKitManifest(value: unknown): value is PromptKitManifest {
@@ -184,6 +186,7 @@ export function isPromptKitEvent(value: unknown): value is PromptKitEvent {
   if (value.blocks !== undefined) {
     if (!Array.isArray(value.blocks) || !value.blocks.every(isPromptKitBlock)) return false;
   }
+  if (value.clear !== undefined && typeof value.clear !== "boolean") return false;
   if (value.state !== undefined && !isState(value.state)) return false;
   if (!validThemeVariant(value.themeVariant)) return false;
   if (value.indicators !== undefined) {
