@@ -1,0 +1,80 @@
+name: publish-v0.2.0
+
+on:
+  push:
+    branches:
+      - feat/lifecycle-theme-v2
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v4
+        with:
+          ref: 360e42eaae47409bc00d001d7b51170b61681737
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify exact release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -p "require('./package.json').version")" = "0.2.0"
+          npm run verify
+
+      - name: Create tag once
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin refs/tags/v0.2.0 >/dev/null 2>&1; then
+            echo "v0.2.0 already exists"
+          else
+            git tag v0.2.0 360e42eaae47409bc00d001d7b51170b61681737
+            git push origin v0.2.0
+          fi
+
+      - name: Build release archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp LICENSE README.md release/
+          cp -R docs dist release/
+          tar -C release -czf promptkit-0.2.0.tar.gz .
+          (cd release && zip -qr ../promptkit-0.2.0.zip .)
+          sha256sum promptkit-0.2.0.tar.gz promptkit-0.2.0.zip > promptkit-0.2.0.sha256
+
+      - name: Create GitHub Release once
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v0.2.0 >/dev/null 2>&1; then
+            echo "Release v0.2.0 already exists"
+          else
+            gh release create v0.2.0 \
+              promptkit-0.2.0.tar.gz \
+              promptkit-0.2.0.zip \
+              promptkit-0.2.0.sha256 \
+              --title "PromptKit v0.2.0" \
+              --generate-notes \
+              --verify-tag
+          fi
+
+      - name: Deploy release to Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml -f tag=v0.2.0
