@@ -16,8 +16,13 @@
     import { PromptKit } from "/dist/index.js";
 
     const root = document.querySelector("#app");
-    const kit = new PromptKit({ root });
-    await kit.start();
+    const kit = new PromptKit({ root, loading: { label: "PromptKit", text: "starting" } });
+    try {
+      await kit.start();
+      kit.ready();
+    } catch {
+      // start() already moves PromptKit into the failed lifecycle state.
+    }
   </script>
 </body>
 </html>
