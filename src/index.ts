@@ -8,7 +8,6 @@ export type {
   PromptKitPhase,
 } from "./promptkit.js";
 export {
-  PROMPTKIT_PROTOCOL_VERSION,
   isPromptKitBlock,
   isPromptKitCommandResponse,
   isPromptKitEvent,
