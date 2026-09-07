@@ -171,7 +171,7 @@ describe("PromptKit", () => {
       command: vi.fn(),
       events: vi.fn((_path: string, onEvent: (event: PromptKitEvent) => void, onError?: (event: Event) => void) => {
         handlers.event = onEvent;
-        handlers.error = onError;
+        if (onError) handlers.error = onError;
         return close;
       }),
     } as unknown as PromptKitClient;
