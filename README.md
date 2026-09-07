@@ -2,7 +2,7 @@
 
 PromptKit is a backend-agnostic web terminal UI for applications that want a small, command-driven interface without adopting a frontend framework.
 
-It provides a responsive terminal rendered in the browser, with command history, completion, structured output, lifecycle handling, dynamic theme variants, generic actions, status indicators and optional live events. PromptKit owns presentation only. The host application owns commands, authentication and business logic.
+It provides a responsive terminal rendered in the browser, with command history, completion, structured output, lifecycle handling, dynamic theme variants, generic actions and indicators, and optional live events. PromptKit owns presentation only. The host application owns commands, authentication and business logic.
 
 ## Goals
 
@@ -11,7 +11,6 @@ It provides a responsive terminal rendered in the browser, with command history,
 - No frontend framework dependency.
 - Mobile-friendly, keyboard-friendly and accessible by default.
 - Structured rendering instead of parsing presentation hints from plain text.
-- Generic interaction primitives without embedding application semantics.
 - A small HTTP protocol that can be implemented by Python, TypeScript, Go or any other backend.
 - Optional realtime events without making realtime mandatory.
 - Explicit compatibility rules for public API and wire-format changes.
@@ -46,17 +45,7 @@ The manifest describes the terminal rather than its business logic:
         "accentMuted": "#4a9781"
       }
     }
-  },
-  "actions": [
-    {
-      "id": "import-data",
-      "label": "import data",
-      "tone": "special",
-      "triggers": [
-        { "type": "drop", "accept": [".json", ".csv"] }
-      ]
-    }
-  ]
+  }
 }
 ```
 
@@ -70,15 +59,12 @@ A command request is deliberately small:
 
 PromptKit preserves non-blank command input exactly as entered.
 
-The response is a list of typed blocks and may switch the active visual variant or replace the current indicators:
+The response is a list of typed blocks and may switch the active visual variant:
 
 ```json
 {
   "ok": true,
   "themeVariant": "active",
-  "indicators": [
-    { "id": "connected", "label": "connected", "tone": "success" }
-  ],
   "blocks": [
     { "type": "text", "text": "Items" },
     {
@@ -167,26 +153,7 @@ Then a response can say:
 
 ## Actions
 
-Actions are generic host-side behaviors identified by an id. PromptKit owns how an action is triggered and presented; the host owns what the action actually does.
-
-The host registers implementations when constructing PromptKit:
-
-```ts
-const kit = new PromptKit({
-  root,
-  actions: {
-    "import-data": async ({ trigger, files }) => {
-      if (trigger !== "drop") return;
-      const result = await importFiles(files);
-      return {
-        blocks: [{ type: "text", text: result.message, tone: "success" }],
-      };
-    },
-  },
-});
-```
-
-The manifest can then declare triggers for that action:
+PromptKit exposes a generic action registry so interactions do not need one-off APIs such as `onDrop`, `onIndicatorClick`, or host-specific upload hooks. The manifest declares presentation triggers while the host supplies the implementation for each action id.
 
 ```json
 {
@@ -198,8 +165,8 @@ The manifest can then declare triggers for that action:
       "triggers": [
         {
           "type": "drop",
-          "accept": [".json", "text/csv"],
-          "multiple": true
+          "accept": [".json", "application/json"],
+          "multiple": false
         }
       ]
     }
@@ -207,13 +174,29 @@ The manifest can then declare triggers for that action:
 }
 ```
 
-For drop triggers, PromptKit owns drag feedback, file matching and routing. If exactly one action matches, it runs directly. If multiple actions match the same files, PromptKit renders a terminal-style chooser. A definition without a registered host handler is never offered as an executable action.
+The host registers the behavior:
 
-Actions can also be invoked manually through `kit.runAction(id, payload?)`. An action result may contain the same presentation fields used by live updates: `blocks`, `state`, `themeVariant`, `indicators` and `clear`.
+```ts
+const kit = new PromptKit({
+  root,
+  actions: {
+    "import-data": async ({ files }) => {
+      await importData(files[0]);
+      return {
+        blocks: [{ type: "text", text: "imported", tone: "success" }],
+      };
+    },
+  },
+});
+```
+
+`runAction(id, payload?)` invokes the same registry manually. Drop is the first declarative trigger; additional trigger kinds can be added without growing the main PromptKit constructor with interaction-specific callbacks.
+
+If more than one action accepts the same drop, PromptKit renders a terminal-style chooser instead of inferring host semantics.
 
 ## Indicators
 
-Indicators are generic status badges rendered by PromptKit. Responses, events and action results replace the complete indicator set.
+Indicators are generic, replaceable pieces of terminal status presentation. They are not tied to any application-specific concept such as recording, connectivity, or synchronization.
 
 ```json
 {
@@ -221,18 +204,16 @@ Indicators are generic status badges rendered by PromptKit. Responses, events an
     {
       "id": "sync",
       "label": "sync",
-      "tone": "success",
-      "pulse": true,
+      "tone": "info",
       "active": true,
-      "action": "toggle-sync"
+      "pulse": true,
+      "action": "open-sync"
     }
   ]
 }
 ```
 
-`active: false` omits an indicator. `pulse: true` requests the standard PromptKit activity animation. `action` is optional; when it names a registered host action, the indicator becomes clickable and invokes that same action registry. Without a matching handler it remains a non-interactive status indicator.
-
-Indicator ids and labels carry no built-in business meaning. PromptKit does not know whether an indicator represents recording, connectivity, synchronization, environment or anything else.
+A command response or SSE event containing `indicators` replaces the complete visible indicator set. `active: false` hides an indicator. If its `action` id has a registered host handler, the indicator is rendered as an interactive control and invokes that generic action.
 
 ## Responsibilities
 
@@ -248,9 +229,8 @@ Indicator ids and labels carry no built-in business meaning. PromptKit does not 
 - rendering typed blocks;
 - smart scrolling;
 - theme tokens and dynamic variants;
-- generic action trigger presentation and routing;
-- drag-and-drop feedback and action selection;
-- generic status indicators;
+- action triggers and interaction presentation;
+- indicator presentation and optional indicator actions;
 - optional SSE events;
 - client-side accessibility and keyboard behavior.
 
@@ -262,10 +242,8 @@ Indicator ids and labels carry no built-in business meaning. PromptKit does not 
 - persistence;
 - application state;
 - which commands are advertised;
-- action implementations;
-- which actions are declared and when they are applicable;
-- which indicators are active;
-- which theme variant should be active;
+- which actions are implemented and what they do;
+- which indicators and theme variant should be active;
 - when host initialization is complete and `ready()` can be called;
 - which events are emitted.
 
@@ -289,7 +267,7 @@ new PromptKit({ root, focusScope: "screen" });
 
 ## Reference demo
 
-The repository includes a zero-dependency Node reference backend that exercises every block type, theme variants and SSE events.
+The repository includes a zero-dependency Node reference backend that exercises every block type, theme variants, actions, indicators and SSE events.
 
 ```bash
 npm install
@@ -311,6 +289,10 @@ Then open `http://127.0.0.1:4173` and try:
 /error
 ```
 
+You can also drop a JSON file onto the terminal to exercise a generic drop action and the resulting indicator.
+
+`examples/demo/` is the single source for both the local reference demo and the GitHub Pages shell. The local server uses the real HTTP endpoints; GitHub Pages uses the same `index.html` and `demo.js` with immutable `dist/` assets downloaded from the selected GitHub Release.
+
 The demo is intentionally application-neutral. It is the reference integration used to evolve PromptKit without requiring an external consumer to be running.
 
 ## Quality gates
@@ -319,7 +301,7 @@ The demo is intentionally application-neutral. It is the reference integration u
 npm run verify
 ```
 
-The gate runs strict TypeScript checking, tests with coverage thresholds, the production build, and a reference-demo smoke test. Global statement, line, function and branch coverage must each remain at or above 95%. Canonical payloads are kept as compatibility fixtures under `tests/compatibility.test.ts`.
+The gate runs strict TypeScript checking, tests with coverage thresholds, the production build, and a reference-demo smoke test. Global statement, branch, function and line coverage are each required to remain at or above 95%. Canonical payloads are kept as compatibility fixtures under `tests/compatibility.test.ts`.
 
 Project-wide compatibility rules live in `AGENTS.md`: breaking changes must never be introduced silently and must be communicated before implementation when unavoidable.
 
