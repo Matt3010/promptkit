@@ -1,0 +1,46 @@
+name: release-v0.4.0
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@v4
+        with:
+          ref: cd9ca7b7127b04c8937e6161e76e67d136b54281
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify exact release source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "cd9ca7b7127b04c8937e6161e76e67d136b54281"
+          test "$(node -p "require('./package.json').version")" = "0.4.0"
+          npm run verify
+
+      - name: Create immutable tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin refs/tags/v0.4.0 >/dev/null 2>&1; then
+            echo "v0.4.0 already exists" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag v0.4.0 cd9ca7b7127b04c8937e6161e76e67d136b54281
+          git push origin refs/tags/v0.4.0
