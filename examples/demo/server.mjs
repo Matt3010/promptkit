@@ -9,7 +9,6 @@ const clients = new Set();
 let progress = 20;
 
 const manifest = {
-  protocol: 2,
   name: "PromptKit",
   subtitle: "/help for demo commands",
   prompt: ">",
@@ -70,7 +69,6 @@ const commandHandlers = new Map([
   ["/status", () => ({
     ok: true,
     blocks: [
-      { type: "status", label: "protocol", value: "v2", tone: "info" },
       { type: "status", label: "backend", value: "healthy", tone: "success" },
       { type: "status", label: "events", value: `${clients.size} client(s)`, tone: "secondary" },
     ],
@@ -88,7 +86,7 @@ const commandHandlers = new Map([
   })],
   ["/code", () => ({
     ok: true,
-    blocks: [{ type: "code", language: "json", code: JSON.stringify({ promptkit: "v2", realtime: true }, null, 2) }],
+    blocks: [{ type: "code", language: "json", code: JSON.stringify({ promptkit: true, realtime: true }, null, 2) }],
   })],
   ["/progress", () => {
     progress = progress >= 100 ? 10 : progress + 10;
@@ -104,7 +102,7 @@ const commandHandlers = new Map([
       type: "download",
       label: "download demo.json",
       filename: "promptkit-demo.json",
-      content: JSON.stringify({ generatedBy: "PromptKit", protocol: 2 }, null, 2),
+      content: JSON.stringify({ generatedBy: "PromptKit" }, null, 2),
       mediaType: "application/json",
     }],
   })],
