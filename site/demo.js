@@ -5,13 +5,6 @@ const release = await fetch("./release.json", { cache: "no-store" }).then((respo
   return response.json();
 });
 
-const version = document.querySelector("#version");
-const releaseLink = document.querySelector("#release-link");
-const protocolLink = document.querySelector("#protocol-link");
-
-if (version) version.textContent = release.tag;
-if (releaseLink) releaseLink.href = `https://github.com/Matt3010/promptkit/releases/tag/${release.tag}`;
-if (protocolLink) protocolLink.href = `https://github.com/Matt3010/promptkit/blob/${release.tag}/docs/protocol.md`;
 document.title = `PromptKit ${release.tag}`;
 
 const commands = ["/help", "/status", "/table", "/code", "/progress", "/download", "/clear"];
