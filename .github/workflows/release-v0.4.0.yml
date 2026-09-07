@@ -8,9 +8,10 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
-  tag:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact release commit
@@ -27,23 +28,47 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Verify exact release source
+      - name: Verify exact release source and tag
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "cd9ca7b7127b04c8937e6161e76e67d136b54281"
           test "$(node -p "require('./package.json').version")" = "0.4.0"
+          git fetch --tags origin
+          test "$(git rev-list -n 1 v0.4.0)" = "cd9ca7b7127b04c8937e6161e76e67d136b54281"
           npm run verify
 
-      - name: Create immutable tag
+      - name: Build release archives
         shell: bash
         run: |
           set -euo pipefail
-          if git ls-remote --exit-code --tags origin refs/tags/v0.4.0 >/dev/null 2>&1; then
-            echo "v0.4.0 already exists" >&2
+          mkdir -p release
+          cp LICENSE README.md release/
+          cp -R docs dist release/
+          tar -C release -czf promptkit-0.4.0.tar.gz .
+          (cd release && zip -qr ../promptkit-0.4.0.zip .)
+          sha256sum promptkit-0.4.0.tar.gz promptkit-0.4.0.zip > promptkit-0.4.0.sha256
+          cat promptkit-0.4.0.sha256
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v0.4.0 >/dev/null 2>&1; then
+            echo "Release v0.4.0 already exists; refusing to overwrite." >&2
             exit 1
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag v0.4.0 cd9ca7b7127b04c8937e6161e76e67d136b54281
-          git push origin refs/tags/v0.4.0
+          gh release create v0.4.0 \
+            promptkit-0.4.0.tar.gz \
+            promptkit-0.4.0.zip \
+            promptkit-0.4.0.sha256 \
+            --title "PromptKit v0.4.0" \
+            --generate-notes \
+            --verify-tag
+
+      - name: Deploy immutable release to Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref master -f tag=v0.4.0
