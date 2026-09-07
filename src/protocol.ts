@@ -7,6 +7,8 @@ export type PromptKitTone =
   | "info"
   | "special";
 
+export type PromptKitState = Record<string, string | number | boolean | null>;
+
 export interface PromptKitThemeTokens {
   accent?: string;
   accentMuted?: string;
@@ -25,12 +27,41 @@ export interface PromptKitTheme {
   variants?: Record<string, PromptKitThemeTokens>;
 }
 
+export interface PromptKitDropActionTrigger {
+  type: "drop";
+  /** File extensions (".json"), exact MIME types or MIME wildcards ("image/*"). */
+  accept?: string[];
+  /** Whether this action accepts more than one dropped file. Defaults to false. */
+  multiple?: boolean;
+}
+
+export type PromptKitActionTrigger = PromptKitDropActionTrigger;
+
+export interface PromptKitActionDefinition {
+  id: string;
+  label?: string;
+  tone?: PromptKitTone;
+  triggers?: PromptKitActionTrigger[];
+}
+
+export interface PromptKitIndicator {
+  id: string;
+  label: string;
+  tone?: PromptKitTone;
+  /** Inactive indicators are omitted from the UI. Defaults to true. */
+  active?: boolean;
+  pulse?: boolean;
+  /** Optional action id invoked when the indicator is clicked. */
+  action?: string;
+}
+
 export interface PromptKitManifest {
   name: string;
   prompt?: string;
   subtitle?: string;
   commands?: string[];
   theme?: PromptKitTheme;
+  actions?: PromptKitActionDefinition[];
   events?: {
     url: string;
   };
@@ -99,9 +130,11 @@ export type PromptKitBlock =
 export interface PromptKitCommandResponse {
   ok: boolean;
   blocks: PromptKitBlock[];
-  state?: Record<string, string | number | boolean | null>;
+  state?: PromptKitState;
   /** Switch to a named manifest theme variant. Null returns to the default theme. */
   themeVariant?: string | null;
+  /** Replace the complete set of visible indicators. */
+  indicators?: PromptKitIndicator[];
   /** Clear previous output before rendering this response. */
   clear?: boolean;
 }
@@ -109,9 +142,11 @@ export interface PromptKitCommandResponse {
 export interface PromptKitEvent {
   id?: string;
   blocks?: PromptKitBlock[];
-  state?: Record<string, string | number | boolean | null>;
+  state?: PromptKitState;
   /** Switch to a named manifest theme variant. Null returns to the default theme. */
   themeVariant?: string | null;
+  /** Replace the complete set of visible indicators. */
+  indicators?: PromptKitIndicator[];
 }
 
 export function isPromptKitManifest(value: unknown): value is PromptKitManifest {
@@ -122,6 +157,9 @@ export function isPromptKitManifest(value: unknown): value is PromptKitManifest 
     if (!Array.isArray(value.commands) || !value.commands.every((item) => typeof item === "string")) return false;
   }
   if (value.theme !== undefined && !isTheme(value.theme)) return false;
+  if (value.actions !== undefined) {
+    if (!Array.isArray(value.actions) || !value.actions.every(isActionDefinition)) return false;
+  }
   if (value.events !== undefined) {
     if (!isRecord(value.events) || typeof value.events.url !== "string") return false;
   }
@@ -134,6 +172,9 @@ export function isPromptKitCommandResponse(value: unknown): value is PromptKitCo
   if (value.clear !== undefined && typeof value.clear !== "boolean") return false;
   if (value.state !== undefined && !isState(value.state)) return false;
   if (!validThemeVariant(value.themeVariant)) return false;
+  if (value.indicators !== undefined) {
+    if (!Array.isArray(value.indicators) || !value.indicators.every(isIndicator)) return false;
+  }
   return true;
 }
 
@@ -145,6 +186,9 @@ export function isPromptKitEvent(value: unknown): value is PromptKitEvent {
   }
   if (value.state !== undefined && !isState(value.state)) return false;
   if (!validThemeVariant(value.themeVariant)) return false;
+  if (value.indicators !== undefined) {
+    if (!Array.isArray(value.indicators) || !value.indicators.every(isIndicator)) return false;
+  }
   return true;
 }
 
@@ -192,6 +236,38 @@ export function isPromptKitBlock(value: unknown): value is PromptKitBlock {
   }
 }
 
+function isActionDefinition(value: unknown): value is PromptKitActionDefinition {
+  if (!isRecord(value) || typeof value.id !== "string" || value.id.length === 0) return false;
+  if (value.label !== undefined && typeof value.label !== "string") return false;
+  if (!validTone(value.tone)) return false;
+  if (value.triggers !== undefined) {
+    if (!Array.isArray(value.triggers) || !value.triggers.every(isActionTrigger)) return false;
+  }
+  return true;
+}
+
+function isActionTrigger(value: unknown): value is PromptKitActionTrigger {
+  if (!isRecord(value) || value.type !== "drop") return false;
+  if (value.multiple !== undefined && typeof value.multiple !== "boolean") return false;
+  if (value.accept !== undefined) {
+    if (!Array.isArray(value.accept) || !value.accept.every((item) => typeof item === "string")) return false;
+  }
+  return true;
+}
+
+function isIndicator(value: unknown): value is PromptKitIndicator {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    value.id.length > 0 &&
+    typeof value.label === "string" &&
+    validTone(value.tone) &&
+    (value.active === undefined || typeof value.active === "boolean") &&
+    (value.pulse === undefined || typeof value.pulse === "boolean") &&
+    (value.action === undefined || typeof value.action === "string")
+  );
+}
+
 function validTone(value: unknown): boolean {
   return (
     value === undefined ||
@@ -236,7 +312,7 @@ function isThemeTokens(value: unknown): value is PromptKitThemeTokens {
   return keys.every((key) => value[key] === undefined || typeof value[key] === "string");
 }
 
-function isState(value: unknown): value is Record<string, string | number | boolean | null> {
+function isState(value: unknown): value is PromptKitState {
   if (!isRecord(value)) return false;
   return Object.values(value).every(
     (item) => item === null || typeof item === "string" || typeof item === "number" || typeof item === "boolean",
