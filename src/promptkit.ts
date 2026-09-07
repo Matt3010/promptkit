@@ -159,8 +159,8 @@ export class PromptKit {
   /** Complete host initialization, replace the loader with the terminal banner and enable input. */
   public ready(): void {
     this.#assertAlive();
-    if (!this.#started || this.#manifest === null) throw new Error("PromptKit must finish start() before ready()");
     if (this.#phase === "failed") throw new Error("PromptKit cannot become ready after fail()");
+    if (!this.#started || this.#manifest === null) throw new Error("PromptKit must finish start() before ready()");
     if (this.#phase === "ready") return;
 
     this.#phase = "ready";
