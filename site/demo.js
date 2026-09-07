@@ -7,7 +7,18 @@ const release = await fetch("./release.json", { cache: "no-store" }).then((respo
 
 document.title = `PromptKit ${release.tag}`;
 
-const commands = ["/help", "/status", "/table", "/code", "/progress", "/download", "/clear"];
+const commands = [
+  "/help",
+  "/status",
+  "/table",
+  "/code",
+  "/progress",
+  "/download",
+  "/theme cool",
+  "/theme warm",
+  "/theme default",
+  "/clear",
+];
 
 const client = {
   async manifest() {
@@ -16,6 +27,22 @@ const client = {
       subtitle: `${release.tag} · static release demo`,
       prompt: ">",
       commands,
+      theme: {
+        default: {
+          accent: "#8b949e",
+          accentMuted: "#5c636b",
+        },
+        variants: {
+          cool: {
+            accent: "#79c0ff",
+            accentMuted: "#587fa6",
+          },
+          warm: {
+            accent: "#e8973a",
+            accentMuted: "#ab7a44",
+          },
+        },
+      },
     };
   },
 
@@ -33,6 +60,9 @@ const client = {
               ["/code", "Render a code block"],
               ["/progress", "Render a progress block"],
               ["/download", "Render a download block"],
+              ["/theme cool", "Switch to the cool theme"],
+              ["/theme warm", "Switch to the warm theme"],
+              ["/theme default", "Return to the default theme"],
               ["/clear", "Clear terminal output"],
             ],
           },
@@ -41,7 +71,7 @@ const client = {
         return response([
           { type: "status", label: "Release", value: release.tag, tone: "success" },
           { type: "status", label: "Source", value: "GitHub Release asset", tone: "info" },
-          { type: "status", label: "Protocol", value: "V1", tone: "primary" },
+          { type: "status", label: "Lifecycle", value: "ready", tone: "primary" },
         ]);
       case "/table":
         return response([
@@ -71,6 +101,12 @@ const client = {
             mediaType: "text/plain",
           },
         ]);
+      case "/theme cool":
+        return { ...response([{ type: "text", text: "Cool theme", tone: "primary" }]), themeVariant: "cool" };
+      case "/theme warm":
+        return { ...response([{ type: "text", text: "Warm theme", tone: "primary" }]), themeVariant: "warm" };
+      case "/theme default":
+        return { ...response([{ type: "text", text: "Default theme", tone: "primary" }]), themeVariant: null };
       case "/clear":
         return { ok: true, clear: true, blocks: [] };
       default:
@@ -86,8 +122,13 @@ const client = {
 const root = document.querySelector("#app");
 if (!(root instanceof HTMLElement)) throw new Error("PromptKit root element not found");
 
-const kit = new PromptKit({ root, client });
-await kit.start();
+const kit = new PromptKit({ root, client, loading: { label: "PromptKit", text: "starting" } });
+try {
+  await kit.start();
+  kit.ready();
+} catch {
+  // start() already exposes the failed lifecycle state.
+}
 
 function response(blocks, ok = true) {
   return { ok, blocks };

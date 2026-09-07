@@ -1,6 +1,8 @@
-# PromptKit protocol v1
+# PromptKit protocol
 
 PromptKit is a presentation client. A host application implements a small HTTP contract and keeps complete ownership of authentication, command parsing, business logic and persistence.
+
+The wire protocol is deliberately versionless. Compatibility is tied to the PromptKit release a consumer pins; the manifest does not duplicate that with a protocol-version field.
 
 ## `GET /tui/manifest`
 
@@ -8,19 +10,33 @@ Returns terminal metadata.
 
 ```json
 {
-  "name": "relay",
+  "name": "example-app",
   "subtitle": "/help for commands",
   "prompt": ">",
-  "commands": ["/apps", "/collections", "/status", "/help"],
+  "commands": ["/status", "/list", "/help"],
   "events": { "url": "/tui/events" },
   "theme": {
-    "accent": "#58d6a8",
-    "accentMuted": "#4a9781"
+    "default": {
+      "accent": "#8b949e",
+      "accentMuted": "#5c636b",
+      "background": "#0d1117",
+      "foreground": "#c9d1d9"
+    },
+    "variants": {
+      "active": {
+        "accent": "#58d6a8",
+        "accentMuted": "#4a9781"
+      },
+      "warning": {
+        "accent": "#e8973a",
+        "accentMuted": "#ab7a44"
+      }
+    }
   }
 }
 ```
 
-Only `name` is required. `commands` drive client-side completion; they do not authorize or implement commands.
+Only `name` is required. `commands` drive client-side completion; they do not authorize or implement commands. `theme.default` defines the base palette, while `theme.variants` declares named visual variants. PromptKit does not attach business meaning to variant names.
 
 ## `POST /tui/command`
 
@@ -32,6 +48,8 @@ Request:
 }
 ```
 
+PromptKit preserves the command string exactly as entered, except that blank input is ignored.
+
 Response:
 
 ```json
@@ -42,13 +60,21 @@ Response:
   ],
   "state": {
     "mode": "production"
-  }
+  },
+  "themeVariant": "active"
 }
 ```
 
 The backend chooses the blocks. The client does not infer tables, errors or downloads by inspecting text.
 
-An unsuccessful command may still return HTTP 200 with `ok: false` when the command was parsed and deliberately rejected. Transport/authentication/protocol failures should use the appropriate non-2xx HTTP status.
+`themeVariant` is optional:
+
+- omitted: keep the current variant;
+- a string: apply that named variant over the default theme;
+- `null`: return to the default theme;
+- an unknown string: safely fall back to the default theme.
+
+An unsuccessful command may still return HTTP 200 with `ok: false` when the command was parsed and deliberately rejected. Transport, authentication and malformed-protocol failures should use the appropriate non-2xx HTTP status.
 
 ## Blocks
 
@@ -68,6 +94,8 @@ An unsuccessful command may still return HTTP 200 with `ok: false` when the comm
 }
 ```
 
+A row containing a single cell spans the full table width, which is useful for section labels and messages mixed with tabular rows.
+
 ### Code
 
 ```json
@@ -78,7 +106,7 @@ An unsuccessful command may still return HTTP 200 with `ok: false` when the comm
 }
 ```
 
-PromptKit does not perform syntax highlighting in v1; `language` is metadata available to consumers and future renderers.
+`language` is metadata available to consumers and future renderers; PromptKit does not require syntax highlighting.
 
 ### Status
 
@@ -128,14 +156,14 @@ Tones describe meaning; applications should not rely on a specific color.
 
 ## State
 
-`state` is a flat map of primitive values. PromptKit reflects it as `data-*` attributes on the root element. This lets an application theme or decorate terminal states without teaching PromptKit their meaning.
+`state` is a flat map of primitive values. PromptKit reflects it as `data-*` attributes on the root element. State remains application data; PromptKit never interprets a key such as `mode` as a styling instruction.
 
 Example:
 
 ```json
 {
   "state": {
-    "mode": "livetest",
+    "mode": "active",
     "recording": true
   }
 }
@@ -144,8 +172,10 @@ Example:
 can result in root attributes equivalent to:
 
 ```html
-<div class="promptkit" data-mode="livetest" data-recording="true"></div>
+<div class="promptkit" data-mode="active" data-recording="true"></div>
 ```
+
+Theme selection is explicitly separate through `themeVariant`.
 
 ## `GET /tui/events` (optional)
 
@@ -159,12 +189,13 @@ If `manifest.events.url` is present, PromptKit opens an SSE connection to that U
   ],
   "state": {
     "worker": "idle"
-  }
+  },
+  "themeVariant": "active"
 }
 ```
 
-An event may contain blocks, state, or both. Malformed SSE payloads are ignored rather than breaking the terminal.
+An event may contain blocks, state, a theme variant, or any combination of them. Malformed SSE payloads are ignored rather than breaking the terminal.
 
-## Versioning rule
+## Compatibility rule
 
-The v1 wire contract is intentionally small. Breaking changes require a protocol version bump; additive optional fields and new block types may be introduced without changing existing semantics. Clients must fail safely on malformed known structures and must never derive business behavior from display text.
+The wire contract is intentionally small and versionless. Prefer additive optional fields and independently renderable block types. If a release intentionally invalidates a previously accepted payload, that is a breaking PromptKit release and must be explicitly communicated with a migration path before implementation.

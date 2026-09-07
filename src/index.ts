@@ -1,7 +1,12 @@
 export { PromptKitClient, PromptKitProtocolError } from "./client.js";
 export type { PromptKitClientOptions } from "./client.js";
 export { PromptKit } from "./promptkit.js";
-export type { PromptKitFocusScope, PromptKitOptions } from "./promptkit.js";
+export type {
+  PromptKitFocusScope,
+  PromptKitLoadingOptions,
+  PromptKitOptions,
+  PromptKitPhase,
+} from "./promptkit.js";
 export {
   isPromptKitBlock,
   isPromptKitCommandResponse,
@@ -18,6 +23,7 @@ export type {
   PromptKitEvent,
   PromptKitManifest,
   PromptKitTheme,
+  PromptKitThemeTokens,
   PromptKitTone,
   SeparatorBlock,
   StatusBlock,

@@ -7,7 +7,7 @@ export type PromptKitTone =
   | "info"
   | "special";
 
-export interface PromptKitTheme {
+export interface PromptKitThemeTokens {
   accent?: string;
   accentMuted?: string;
   background?: string;
@@ -18,6 +18,11 @@ export interface PromptKitTheme {
   success?: string;
   info?: string;
   special?: string;
+}
+
+export interface PromptKitTheme {
+  default?: PromptKitThemeTokens;
+  variants?: Record<string, PromptKitThemeTokens>;
 }
 
 export interface PromptKitManifest {
@@ -95,6 +100,8 @@ export interface PromptKitCommandResponse {
   ok: boolean;
   blocks: PromptKitBlock[];
   state?: Record<string, string | number | boolean | null>;
+  /** Switch to a named manifest theme variant. Null returns to the default theme. */
+  themeVariant?: string | null;
   /** Clear previous output before rendering this response. */
   clear?: boolean;
 }
@@ -103,6 +110,8 @@ export interface PromptKitEvent {
   id?: string;
   blocks?: PromptKitBlock[];
   state?: Record<string, string | number | boolean | null>;
+  /** Switch to a named manifest theme variant. Null returns to the default theme. */
+  themeVariant?: string | null;
 }
 
 export function isPromptKitManifest(value: unknown): value is PromptKitManifest {
@@ -110,10 +119,9 @@ export function isPromptKitManifest(value: unknown): value is PromptKitManifest 
   if (value.prompt !== undefined && typeof value.prompt !== "string") return false;
   if (value.subtitle !== undefined && typeof value.subtitle !== "string") return false;
   if (value.commands !== undefined) {
-    if (!Array.isArray(value.commands) || !value.commands.every((item) => typeof item === "string")) {
-      return false;
-    }
+    if (!Array.isArray(value.commands) || !value.commands.every((item) => typeof item === "string")) return false;
   }
+  if (value.theme !== undefined && !isTheme(value.theme)) return false;
   if (value.events !== undefined) {
     if (!isRecord(value.events) || typeof value.events.url !== "string") return false;
   }
@@ -122,8 +130,11 @@ export function isPromptKitManifest(value: unknown): value is PromptKitManifest 
 
 export function isPromptKitCommandResponse(value: unknown): value is PromptKitCommandResponse {
   if (!isRecord(value) || typeof value.ok !== "boolean" || !Array.isArray(value.blocks)) return false;
+  if (!value.blocks.every(isPromptKitBlock)) return false;
   if (value.clear !== undefined && typeof value.clear !== "boolean") return false;
-  return value.blocks.every(isPromptKitBlock);
+  if (value.state !== undefined && !isState(value.state)) return false;
+  if (!validThemeVariant(value.themeVariant)) return false;
+  return true;
 }
 
 export function isPromptKitEvent(value: unknown): value is PromptKitEvent {
@@ -133,6 +144,7 @@ export function isPromptKitEvent(value: unknown): value is PromptKitEvent {
     if (!Array.isArray(value.blocks) || !value.blocks.every(isPromptKitBlock)) return false;
   }
   if (value.state !== undefined && !isState(value.state)) return false;
+  if (!validThemeVariant(value.themeVariant)) return false;
   return true;
 }
 
@@ -191,6 +203,37 @@ function validTone(value: unknown): boolean {
     value === "info" ||
     value === "special"
   );
+}
+
+function validThemeVariant(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "string";
+}
+
+function isTheme(value: unknown): value is PromptKitTheme {
+  if (!isRecord(value)) return false;
+  if (value.default !== undefined && !isThemeTokens(value.default)) return false;
+  if (value.variants !== undefined) {
+    if (!isRecord(value.variants)) return false;
+    if (!Object.values(value.variants).every(isThemeTokens)) return false;
+  }
+  return true;
+}
+
+function isThemeTokens(value: unknown): value is PromptKitThemeTokens {
+  if (!isRecord(value)) return false;
+  const keys: Array<keyof PromptKitThemeTokens> = [
+    "accent",
+    "accentMuted",
+    "background",
+    "foreground",
+    "muted",
+    "danger",
+    "warning",
+    "success",
+    "info",
+    "special",
+  ];
+  return keys.every((key) => value[key] === undefined || typeof value[key] === "string");
 }
 
 function isState(value: unknown): value is Record<string, string | number | boolean | null> {

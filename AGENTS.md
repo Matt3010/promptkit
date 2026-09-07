@@ -43,16 +43,16 @@ Before proceeding, explicitly communicate that the proposed change is breaking a
 2. which consumers or integrations are affected;
 3. why the change cannot reasonably be implemented additively;
 4. the migration path for existing consumers;
-5. whether a protocol/package major version bump is required;
+5. whether a package major/minor release boundary is required for the current pre-1.0 API;
 6. whether a compatibility period or deprecation phase can be provided.
 
 A breaking change must be a deliberate, visible decision. Never hide one inside a refactor, cleanup, dependency update, protocol adjustment, or UI rewrite.
 
 ## Protocol evolution
 
-The PromptKit wire protocol must remain backward compatible within the same major protocol version.
+The PromptKit wire protocol is deliberately versionless. Do not add a protocol-version field merely to mirror the package version.
 
-Additive optional fields and new independently renderable block types are allowed when older clients can safely ignore them. Any change that makes a previously valid v1 request or response invalid is a breaking protocol change and must follow the breaking-change process above.
+Compatibility is governed by the PromptKit release that a consumer pins. Within a compatible release line, prefer additive optional fields and new independently renderable block types that older consumers can safely ignore. Any change that makes a previously valid request or response invalid is a breaking protocol change and must follow the breaking-change process above.
 
 ## Tests
 
