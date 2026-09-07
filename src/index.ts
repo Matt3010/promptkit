@@ -13,6 +13,7 @@ export type {
   PromptKitLoadingOptions,
   PromptKitOptions,
   PromptKitPhase,
+  PromptKitUpdate,
 } from "./promptkit.js";
 export {
   isPromptKitBlock,
@@ -27,10 +28,14 @@ export type {
   PromptKitActionDefinition,
   PromptKitActionTrigger,
   PromptKitBlock,
+  PromptKitBlockUpdate,
   PromptKitCommandRequest,
   PromptKitCommandResponse,
+  PromptKitDownloadBehavior,
   PromptKitDropActionTrigger,
   PromptKitEvent,
+  PromptKitEventSource,
+  PromptKitEventTransport,
   PromptKitIndicator,
   PromptKitManifest,
   PromptKitState,
