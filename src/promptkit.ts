@@ -259,7 +259,7 @@ export class PromptKit {
     for (const block of blocks) {
       const element = this.#renderer.render(block);
       const existing = block.id && block.update === "replace" ? this.#keyedBlocks.get(block.id) : undefined;
-      if (existing?.isConnected) existing.replaceWith(element);
+      if (existing?.parentNode === this.#screen) existing.replaceWith(element);
       else this.#screen.insertBefore(element, this.#line);
       if (block.id) this.#keyedBlocks.set(block.id, element);
     }
