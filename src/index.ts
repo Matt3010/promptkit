@@ -20,6 +20,7 @@ export {
   isPromptKitCommandResponse,
   isPromptKitEvent,
   isPromptKitManifest,
+  isPromptKitSnapshot,
 } from "./protocol.js";
 export type {
   CodeBlock,
@@ -29,6 +30,7 @@ export type {
   PromptKitActionTrigger,
   PromptKitBlock,
   PromptKitBlockUpdate,
+  PromptKitBootstrapSource,
   PromptKitCommandRequest,
   PromptKitCommandResponse,
   PromptKitDownloadBehavior,
@@ -38,6 +40,7 @@ export type {
   PromptKitEventTransport,
   PromptKitIndicator,
   PromptKitManifest,
+  PromptKitSnapshot,
   PromptKitState,
   PromptKitTheme,
   PromptKitThemeTokens,

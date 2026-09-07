@@ -41,6 +41,18 @@ describe("PromptKitClient", () => {
     );
   });
 
+  it("loads an idempotent bootstrap snapshot with GET", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response({ state: { mode: "ready" }, blocks: [{ type: "text", text: "initial" }] }));
+    const client = new PromptKitClient({ baseUrl: "https://example.test", fetch: fetchMock });
+    await expect(client.bootstrap({ url: "/tui/bootstrap" })).resolves.toEqual({ state: { mode: "ready" }, blocks: [{ type: "text", text: "initial" }] });
+    expect(fetchMock).toHaveBeenCalledWith("https://example.test/tui/bootstrap", expect.objectContaining({ method: "GET" }));
+  });
+
+  it("rejects an invalid bootstrap snapshot", async () => {
+    const client = new PromptKitClient({ fetch: vi.fn<typeof fetch>().mockResolvedValue(response({ blocks: [{ type: "wat" }] })) });
+    await expect(client.bootstrap({ url: "/tui/bootstrap" })).rejects.toBeInstanceOf(PromptKitProtocolError);
+  });
+
   it("passes AbortSignal only when supplied", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response({ name: "demo" }));
     const client = new PromptKitClient({ fetch: fetchMock });

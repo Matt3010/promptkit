@@ -11,6 +11,9 @@ afterEach(() => {
 
 describe("live updates", () => {
   it("keeps SSE explicit but optional in the manifest", () => {
+    expect(isPromptKitManifest({ name: "demo", bootstrap: { url: "/bootstrap" } })).toBe(true);
+    expect(isPromptKitManifest({ name: "demo", bootstrap: { url: "" } })).toBe(false);
+    expect(isPromptKitManifest({ name: "demo", bootstrap: "/bootstrap" })).toBe(false);
     expect(isPromptKitManifest({ name: "demo", events: { url: "/events" } })).toBe(true);
     expect(isPromptKitManifest({ name: "demo", events: { url: "/events", transport: "sse" } })).toBe(true);
     expect(isPromptKitManifest({ name: "demo", events: { url: "/events", transport: "websocket" } })).toBe(false);
@@ -68,6 +71,13 @@ describe("live updates", () => {
     expect(() =>
       client.events({ url: "/events", transport: "websocket" } as never, vi.fn()),
     ).toThrow(PromptKitProtocolError);
+  });
+
+  it("applies bootstrap before opening the live event stream", async () => {
+    const root = document.createElement("main"); document.body.append(root); const order: string[] = [];
+    const client = { manifest: vi.fn().mockResolvedValue({ name: "demo", bootstrap: { url: "/bootstrap" }, events: { url: "/events" } }), bootstrap: vi.fn().mockImplementation(async () => { order.push("bootstrap"); return { state: { mode: "initial" }, blocks: [{ type: "text", text: "snapshot" }] }; }), events: vi.fn().mockImplementation(() => { order.push("events"); return vi.fn(); }) } as unknown as PromptKitClient;
+    const kit = new PromptKit({ root, client }); await kit.start();
+    expect(order).toEqual(["bootstrap", "events"]); expect(root.dataset.mode).toBe("initial"); kit.ready(); expect(root.textContent).toContain("snapshot");
   });
 
   it("replaces keyed blocks in place and notifies the host after applying updates", async () => {

@@ -1,6 +1,6 @@
 {
   "name": "@matt3010/promptkit",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Backend-agnostic web terminal UI with a small structured protocol.",
   "type": "module",
@@ -17,7 +17,11 @@
     },
     "./styles.css": "./dist/styles.css"
   },
-  "files": ["dist", "README.md", "docs"],
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
   "scripts": {
     "build": "npm run build:modules && npm run build:browser",
     "build:modules": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",

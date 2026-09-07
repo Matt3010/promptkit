@@ -2,10 +2,13 @@ import {
   isPromptKitCommandResponse,
   isPromptKitEvent,
   isPromptKitManifest,
+  isPromptKitSnapshot,
+  type PromptKitBootstrapSource,
   type PromptKitCommandResponse,
   type PromptKitEvent,
   type PromptKitEventSource,
   type PromptKitManifest,
+  type PromptKitSnapshot,
 } from "./protocol.js";
 
 export interface PromptKitClientOptions {
@@ -43,6 +46,12 @@ export class PromptKitClient {
     if (!isPromptKitManifest(value)) {
       throw new PromptKitProtocolError("invalid PromptKit manifest");
     }
+    return value;
+  }
+
+  public async bootstrap(source: PromptKitBootstrapSource, signal?: AbortSignal): Promise<PromptKitSnapshot> {
+    const value = await this.#json(source.url, withSignal({ method: "GET" }, signal));
+    if (!isPromptKitSnapshot(value)) throw new PromptKitProtocolError("invalid PromptKit bootstrap snapshot");
     return value;
   }
 

@@ -10,13 +10,14 @@ import type {
   PromptKitEvent,
   PromptKitIndicator,
   PromptKitManifest,
+  PromptKitSnapshot,
   PromptKitState,
 } from "./protocol.js";
 import { PromptKitRenderer, type PromptKitRendererOptions } from "./renderer.js";
 
 export type PromptKitFocusScope = "screen" | "document";
 export type PromptKitPhase = "loading" | "ready" | "failed";
-export type PromptKitUpdate = PromptKitActionResult | PromptKitCommandResponse | PromptKitEvent;
+export type PromptKitUpdate = PromptKitActionResult | PromptKitCommandResponse | PromptKitEvent | PromptKitSnapshot;
 
 export interface PromptKitLoadingOptions {
   label?: string;
@@ -153,7 +154,7 @@ export class PromptKit {
     return this.#phase;
   }
 
-  /** Load the manifest and optional event stream. The terminal remains in loading state until ready() is called. */
+  /** Load manifest, optional bootstrap snapshot, then optional event stream. Remains loading until ready(). */
   public async start(): Promise<void> {
     this.#assertAlive();
     if (this.#started) throw new Error("PromptKit start() can only be called once");
@@ -168,6 +169,12 @@ export class PromptKit {
       this.#renderer.applyTheme(this.#root, manifest.theme);
       this.#actions.configure(manifest.actions ?? []);
       this.#refreshSuggestion();
+
+      if (manifest.bootstrap) {
+        const snapshot = await this.#client.bootstrap(manifest.bootstrap);
+        if (this.#destroyed) return;
+        this.#applyUpdate(snapshot);
+      }
 
       if (manifest.events) {
         this.#closeEvents = this.#client.events(
