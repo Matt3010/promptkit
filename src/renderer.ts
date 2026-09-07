@@ -72,6 +72,7 @@ export class PromptKitRenderer {
 
     const table = this.#document.createElement("table");
     table.className = "pk-table";
+    const columnCount = Math.max(1, columns.length, ...rows.map((row) => row.length));
 
     if (columns.length > 0) {
       const head = this.#document.createElement("thead");
@@ -91,6 +92,7 @@ export class PromptKitRenderer {
       const row = this.#document.createElement("tr");
       for (const value of values) {
         const cell = this.#document.createElement("td");
+        if (values.length === 1 && columnCount > 1) cell.colSpan = columnCount;
         cell.textContent = value;
         row.append(cell);
       }
