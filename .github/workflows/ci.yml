@@ -25,5 +25,5 @@ jobs:
       - name: Verify
         run: npm run verify
 
-      - name: Pages asset syntax
-        run: node --check site/demo.js
+      - name: Demo asset syntax
+        run: node --check examples/demo/demo.js
