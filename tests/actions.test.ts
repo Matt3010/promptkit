@@ -99,6 +99,99 @@ describe("PromptKitActions", () => {
     actions.destroy();
   });
 
+  it("supports unconstrained, exact filename and exact MIME accept rules", async () => {
+    const any = vi.fn();
+    const exactName = vi.fn();
+    const exactMime = vi.fn();
+
+    const unrestricted = setup(
+      [{ id: "any", triggers: [{ type: "drop" }] }],
+      { any },
+    );
+    const arbitrary = new File(["x"], "anything.bin", { type: "application/octet-stream" });
+    drop([arbitrary]);
+    await vi.waitFor(() => expect(any).toHaveBeenCalledTimes(1));
+    unrestricted.actions.destroy();
+
+    const byName = setup(
+      [{ id: "exact-name", triggers: [{ type: "drop", accept: ["CONFIG.JSON"] }] }],
+      { "exact-name": exactName },
+    );
+    const named = new File(["{}"], "config.json", { type: "" });
+    drop([named]);
+    await vi.waitFor(() => expect(exactName).toHaveBeenCalledTimes(1));
+    byName.actions.destroy();
+
+    const byMime = setup(
+      [{ id: "exact-mime", triggers: [{ type: "drop", accept: ["APPLICATION/JSON"] }] }],
+      { "exact-mime": exactMime },
+    );
+    const typed = new File(["{}"], "payload.data", { type: "application/json" });
+    drop([typed]);
+    await vi.waitFor(() => expect(exactMime).toHaveBeenCalledTimes(1));
+    byMime.actions.destroy();
+  });
+
+  it("rejects empty accept rules and multiple files when multiple is not enabled", () => {
+    const emptyRuleHandler = vi.fn();
+    const emptyRule = setup(
+      [{ id: "empty-rule", triggers: [{ type: "drop", accept: ["   "] }] }],
+      { "empty-rule": emptyRuleHandler },
+    );
+    drop([new File(["x"], "x.txt", { type: "text/plain" })]);
+    expect(emptyRuleHandler).not.toHaveBeenCalled();
+    expect(emptyRule.applied.at(-1)?.blocks?.[0]).toMatchObject({ tone: "warning" });
+    emptyRule.actions.destroy();
+
+    const singleHandler = vi.fn();
+    const single = setup(
+      [{ id: "single", triggers: [{ type: "drop", accept: [".json"] }] }],
+      { single: singleHandler },
+    );
+    drop([
+      new File(["{}"], "one.json", { type: "application/json" }),
+      new File(["{}"], "two.json", { type: "application/json" }),
+    ]);
+    expect(singleHandler).not.toHaveBeenCalled();
+    expect(single.applied.at(-1)?.blocks?.[0]).toMatchObject({ tone: "warning" });
+    single.actions.destroy();
+  });
+
+  it("ignores drag and drop when there is no runnable drop action", () => {
+    const { root, actions, applied } = setup(
+      [
+        { id: "missing-handler", triggers: [{ type: "drop", accept: [".json"] }] },
+        { id: "manual-only" },
+      ],
+      undefined,
+    );
+
+    const over = new Event("dragover", { bubbles: true, cancelable: true });
+    document.dispatchEvent(over);
+    expect(over.defaultPrevented).toBe(false);
+    expect(root.dataset.dragging).toBeUndefined();
+
+    const event = drop([new File(["{}"], "config.json", { type: "application/json" })]);
+    expect(event.defaultPrevented).toBe(false);
+    expect(applied).toEqual([]);
+
+    actions.destroy();
+  });
+
+  it("ignores an empty drop even when drop actions are configured", () => {
+    const handler = vi.fn();
+    const { actions, applied } = setup(
+      [{ id: "import", triggers: [{ type: "drop" }] }],
+      { import: handler },
+    );
+
+    const event = drop([]);
+    expect(event.defaultPrevented).toBe(true);
+    expect(handler).not.toHaveBeenCalled();
+    expect(applied).toEqual([]);
+    actions.destroy();
+  });
+
   it("shows a chooser when more than one drop action matches", async () => {
     const first = vi.fn();
     const second = vi.fn();
@@ -121,6 +214,38 @@ describe("PromptKitActions", () => {
     expect(first).not.toHaveBeenCalled();
     expect(root.querySelector(".pk-action-chooser")).toBeNull();
 
+    actions.destroy();
+  });
+
+  it("replaces an existing chooser and uses generic labels for multiple files", async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { root, actions } = setup(
+      [
+        { id: "first", triggers: [{ type: "drop", multiple: true }] },
+        { id: "second", triggers: [{ type: "drop", multiple: true }] },
+      ],
+      { first, second },
+    );
+
+    const files = [
+      new File(["a"], "a.bin"),
+      new File(["b"], "b.bin"),
+    ];
+    drop(files);
+    const originalChooser = root.querySelector(".pk-action-chooser");
+    expect(originalChooser?.textContent).toContain("2 files");
+    expect(root.querySelector('[data-action="first"]')?.textContent).toBe("[first]");
+    expect(root.querySelector('[data-action="first"]')?.classList).toContain("pk-tone-primary");
+
+    drop(files);
+    const replacementChooser = root.querySelector(".pk-action-chooser");
+    expect(replacementChooser).not.toBe(originalChooser);
+    expect(root.querySelectorAll(".pk-action-chooser")).toHaveLength(1);
+
+    (root.querySelector('[data-action="first"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(first).toHaveBeenCalledTimes(1));
+    expect(second).not.toHaveBeenCalled();
     actions.destroy();
   });
 
@@ -150,6 +275,21 @@ describe("PromptKitActions", () => {
     actions.destroy();
   });
 
+  it("keeps indicators non-actionable when their action has no host handler", () => {
+    const { actions, root } = setup([], {});
+    actions.setIndicators([
+      { id: "unknown", label: "unknown", action: "missing" },
+      { id: "plain", label: "plain" },
+    ]);
+
+    const unknown = root.querySelector('[data-indicator="unknown"]') as HTMLElement;
+    expect(unknown.tagName).toBe("SPAN");
+    expect(unknown.dataset.action).toBeUndefined();
+    expect(unknown.classList).toContain("pk-tone-primary");
+    expect(unknown.classList).not.toContain("pk-indicator-pulse");
+    actions.destroy();
+  });
+
   it("supports manual actions, errors and cleanup", async () => {
     const manual = vi.fn().mockImplementation(({ payload }) => ({
       state: { payload: String(payload) },
@@ -172,6 +312,21 @@ describe("PromptKitActions", () => {
     actions.destroy();
     expect(root.querySelector(".pk-indicators")).toBeNull();
     await expect(actions.run("manual")).rejects.toThrow("destroyed");
+    actions.destroy();
+  });
+
+  it("does not apply a result for void handlers and normalizes non-Error failures", async () => {
+    const noop = vi.fn();
+    const failing = vi.fn().mockRejectedValue("plain failure");
+    const { actions, applied } = setup([], { noop, failing });
+
+    await actions.run("noop");
+    expect(applied).toEqual([]);
+
+    await actions.run("failing");
+    expect(applied).toEqual([
+      { blocks: [{ type: "text", text: "plain failure", tone: "danger" }] },
+    ]);
     actions.destroy();
   });
 });
