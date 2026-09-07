@@ -8,6 +8,9 @@ export type PromptKitTone =
   | "special";
 
 export type PromptKitState = Record<string, string | number | boolean | null>;
+export type PromptKitBlockUpdate = "append" | "replace";
+export type PromptKitDownloadBehavior = "manual" | "auto";
+export type PromptKitEventTransport = "sse";
 
 export interface PromptKitThemeTokens {
   accent?: string;
@@ -55,6 +58,12 @@ export interface PromptKitIndicator {
   action?: string;
 }
 
+export interface PromptKitEventSource {
+  url: string;
+  /** Event transport. SSE is the current default and only built-in transport. */
+  transport?: PromptKitEventTransport;
+}
+
 export interface PromptKitManifest {
   name: string;
   prompt?: string;
@@ -62,43 +71,48 @@ export interface PromptKitManifest {
   commands?: string[];
   theme?: PromptKitTheme;
   actions?: PromptKitActionDefinition[];
-  events?: {
-    url: string;
-  };
+  events?: PromptKitEventSource;
 }
 
 export interface PromptKitCommandRequest {
   input: string;
 }
 
-export interface TextBlock {
+interface PromptKitBlockIdentity {
+  /** Stable host-defined identity used for in-place updates. */
+  id?: string;
+  /** Replace the latest block with the same id instead of appending. Defaults to append. */
+  update?: PromptKitBlockUpdate;
+}
+
+export interface TextBlock extends PromptKitBlockIdentity {
   type: "text";
   text: string;
   tone?: PromptKitTone;
 }
 
-export interface TableBlock {
+export interface TableBlock extends PromptKitBlockIdentity {
   type: "table";
   columns?: string[];
   rows: string[][];
   tone?: PromptKitTone;
 }
 
-export interface CodeBlock {
+export interface CodeBlock extends PromptKitBlockIdentity {
   type: "code";
   code: string;
   language?: string;
   tone?: PromptKitTone;
 }
 
-export interface StatusBlock {
+export interface StatusBlock extends PromptKitBlockIdentity {
   type: "status";
   label: string;
   value: string;
   tone?: PromptKitTone;
 }
 
-export interface ProgressBlock {
+export interface ProgressBlock extends PromptKitBlockIdentity {
   type: "progress";
   label?: string;
   value: number;
@@ -106,15 +120,17 @@ export interface ProgressBlock {
   tone?: PromptKitTone;
 }
 
-export interface DownloadBlock {
+export interface DownloadBlock extends PromptKitBlockIdentity {
   type: "download";
   label: string;
   filename: string;
   content: string;
   mediaType?: string;
+  /** Manual renders the existing download control. Auto downloads immediately and stays visually hidden. */
+  behavior?: PromptKitDownloadBehavior;
 }
 
-export interface SeparatorBlock {
+export interface SeparatorBlock extends PromptKitBlockIdentity {
   type: "separator";
 }
 
@@ -162,9 +178,7 @@ export function isPromptKitManifest(value: unknown): value is PromptKitManifest 
   if (value.actions !== undefined) {
     if (!Array.isArray(value.actions) || !value.actions.every(isActionDefinition)) return false;
   }
-  if (value.events !== undefined) {
-    if (!isRecord(value.events) || typeof value.events.url !== "string") return false;
-  }
+  if (value.events !== undefined && !isEventSource(value.events)) return false;
   return true;
 }
 
@@ -196,7 +210,7 @@ export function isPromptKitEvent(value: unknown): value is PromptKitEvent {
 }
 
 export function isPromptKitBlock(value: unknown): value is PromptKitBlock {
-  if (!isRecord(value) || typeof value.type !== "string") return false;
+  if (!isRecord(value) || typeof value.type !== "string" || !validBlockIdentity(value)) return false;
 
   switch (value.type) {
     case "text":
@@ -230,13 +244,27 @@ export function isPromptKitBlock(value: unknown): value is PromptKitBlock {
         typeof value.label === "string" &&
         typeof value.filename === "string" &&
         typeof value.content === "string" &&
-        (value.mediaType === undefined || typeof value.mediaType === "string")
+        (value.mediaType === undefined || typeof value.mediaType === "string") &&
+        (value.behavior === undefined || value.behavior === "manual" || value.behavior === "auto")
       );
     case "separator":
       return true;
     default:
       return false;
   }
+}
+
+function isEventSource(value: unknown): value is PromptKitEventSource {
+  return (
+    isRecord(value) &&
+    typeof value.url === "string" &&
+    (value.transport === undefined || value.transport === "sse")
+  );
+}
+
+function validBlockIdentity(value: Record<string, unknown>): boolean {
+  if (value.id !== undefined && (typeof value.id !== "string" || value.id.length === 0)) return false;
+  return value.update === undefined || value.update === "append" || value.update === "replace";
 }
 
 function isActionDefinition(value: unknown): value is PromptKitActionDefinition {

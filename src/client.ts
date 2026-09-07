@@ -4,6 +4,7 @@ import {
   isPromptKitManifest,
   type PromptKitCommandResponse,
   type PromptKitEvent,
+  type PromptKitEventSource,
   type PromptKitManifest,
 } from "./protocol.js";
 
@@ -63,8 +64,18 @@ export class PromptKitClient {
     return value;
   }
 
-  public events(path: string, onEvent: (event: PromptKitEvent) => void, onError?: (event: Event) => void): () => void {
-    const source = this.#eventSourceFactory(this.#url(path));
+  /** Open the manifest event channel. A string remains supported and means SSE. */
+  public events(
+    source: string | PromptKitEventSource,
+    onEvent: (event: PromptKitEvent) => void,
+    onError?: (event: Event) => void,
+  ): () => void {
+    const config: PromptKitEventSource = typeof source === "string" ? { url: source } : source;
+    if (config.transport !== undefined && config.transport !== "sse") {
+      throw new PromptKitProtocolError(`unsupported PromptKit event transport: ${String(config.transport)}`);
+    }
+
+    const eventSource = this.#eventSourceFactory(this.#url(config.url));
     const listener = (message: MessageEvent<string>): void => {
       let decoded: unknown;
       try {
@@ -75,10 +86,10 @@ export class PromptKitClient {
       if (isPromptKitEvent(decoded)) onEvent(decoded);
     };
 
-    source.addEventListener("message", listener as EventListener);
-    if (onError) source.addEventListener("error", onError);
+    eventSource.addEventListener("message", listener as EventListener);
+    if (onError) eventSource.addEventListener("error", onError);
 
-    return () => source.close();
+    return () => eventSource.close();
   }
 
   async #json(path: string, init: RequestInit): Promise<unknown> {
