@@ -24,6 +24,14 @@ const manifest = {
     "/theme default",
     "/error",
   ],
+  actions: [
+    {
+      id: "inspect-files",
+      label: "inspect JSON files",
+      tone: "special",
+      triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+    },
+  ],
   theme: {
     default: {
       accent: "#58d6a8",
@@ -62,6 +70,7 @@ const commandHandlers = new Map([
           ["/theme warm", "switch to the warm theme variant"],
           ["/theme default", "return to the default theme"],
           ["/error", "danger output"],
+          ["drop .json", "run the generic inspect-files action"],
         ],
       },
     ],
@@ -73,6 +82,7 @@ const commandHandlers = new Map([
       { type: "status", label: "events", value: `${clients.size} client(s)`, tone: "secondary" },
     ],
     state: { backend: "healthy" },
+    indicators: [{ id: "backend", label: "backend", tone: "success" }],
   })],
   ["/table", () => ({
     ok: true,
@@ -197,7 +207,11 @@ async function readJson(request) {
 }
 
 function serveStatic(pathname, response) {
-  const requested = pathname === "/" ? "/examples/demo/index.html" : pathname;
+  const requested = pathname === "/"
+    ? "/examples/demo/index.html"
+    : pathname.startsWith("/dist/")
+      ? pathname
+      : `/examples/demo${pathname}`;
   const safe = normalize(requested).replace(/^(\.\.(\/|\\|$))+/, "");
   const file = join(root, safe);
 

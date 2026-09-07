@@ -24,7 +24,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Pages shell
+      - name: Checkout reference demo
         uses: actions/checkout@v6
 
       - name: Resolve release
@@ -79,7 +79,7 @@ jobs:
           set -euo pipefail
           rm -rf _site
           mkdir -p _site
-          cp -R site/. _site/
+          cp examples/demo/index.html examples/demo/demo.js _site/
           cp -R .pages-release/package/dist _site/dist
           touch _site/.nojekyll
           printf '{"tag":"%s","version":"%s"}\n' "$TAG" "$VERSION" > _site/release.json

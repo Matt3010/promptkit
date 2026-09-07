@@ -2,7 +2,7 @@
 
 PromptKit is a backend-agnostic web terminal UI for applications that want a small, command-driven interface without adopting a frontend framework.
 
-It provides a responsive terminal rendered in the browser, with command history, completion, structured output, lifecycle handling, dynamic theme variants and optional live events. PromptKit owns presentation only. The host application owns commands, authentication and business logic.
+It provides a responsive terminal rendered in the browser, with command history, completion, structured output, lifecycle handling, dynamic theme variants, generic actions and indicators, and optional live events. PromptKit owns presentation only. The host application owns commands, authentication and business logic.
 
 ## Goals
 
@@ -151,6 +151,70 @@ Then a response can say:
 
 `themeVariant` omitted keeps the current selection, a string selects that variant, and `null` returns to the default theme. Unknown variant names fall back safely to the default. PromptKit does not infer theme from application state.
 
+## Actions
+
+PromptKit exposes a generic action registry so interactions do not need one-off APIs such as `onDrop`, `onIndicatorClick`, or host-specific upload hooks. The manifest declares presentation triggers while the host supplies the implementation for each action id.
+
+```json
+{
+  "actions": [
+    {
+      "id": "import-data",
+      "label": "import data",
+      "tone": "special",
+      "triggers": [
+        {
+          "type": "drop",
+          "accept": [".json", "application/json"],
+          "multiple": false
+        }
+      ]
+    }
+  ]
+}
+```
+
+The host registers the behavior:
+
+```ts
+const kit = new PromptKit({
+  root,
+  actions: {
+    "import-data": async ({ files }) => {
+      await importData(files[0]);
+      return {
+        blocks: [{ type: "text", text: "imported", tone: "success" }],
+      };
+    },
+  },
+});
+```
+
+`runAction(id, payload?)` invokes the same registry manually. Drop is the first declarative trigger; additional trigger kinds can be added without growing the main PromptKit constructor with interaction-specific callbacks.
+
+If more than one action accepts the same drop, PromptKit renders a terminal-style chooser instead of inferring host semantics.
+
+## Indicators
+
+Indicators are generic, replaceable pieces of terminal status presentation. They are not tied to any application-specific concept such as recording, connectivity, or synchronization.
+
+```json
+{
+  "indicators": [
+    {
+      "id": "sync",
+      "label": "sync",
+      "tone": "info",
+      "active": true,
+      "pulse": true,
+      "action": "open-sync"
+    }
+  ]
+}
+```
+
+A command response or SSE event containing `indicators` replaces the complete visible indicator set. `active: false` hides an indicator. If its `action` id has a registered host handler, the indicator is rendered as an interactive control and invokes that generic action.
+
 ## Responsibilities
 
 ### PromptKit owns
@@ -165,6 +229,8 @@ Then a response can say:
 - rendering typed blocks;
 - smart scrolling;
 - theme tokens and dynamic variants;
+- action triggers and interaction presentation;
+- indicator presentation and optional indicator actions;
 - optional SSE events;
 - client-side accessibility and keyboard behavior.
 
@@ -176,7 +242,8 @@ Then a response can say:
 - persistence;
 - application state;
 - which commands are advertised;
-- which theme variant should be active;
+- which actions are implemented and what they do;
+- which indicators and theme variant should be active;
 - when host initialization is complete and `ready()` can be called;
 - which events are emitted.
 
@@ -200,7 +267,7 @@ new PromptKit({ root, focusScope: "screen" });
 
 ## Reference demo
 
-The repository includes a zero-dependency Node reference backend that exercises every block type, theme variants and SSE events.
+The repository includes a zero-dependency Node reference backend that exercises every block type, theme variants, actions, indicators and SSE events.
 
 ```bash
 npm install
@@ -222,6 +289,10 @@ Then open `http://127.0.0.1:4173` and try:
 /error
 ```
 
+You can also drop a JSON file onto the terminal to exercise a generic drop action and the resulting indicator.
+
+`examples/demo/` is the single source for both the local reference demo and the GitHub Pages shell. The local server uses the real HTTP endpoints; GitHub Pages uses the same `index.html` and `demo.js` with immutable `dist/` assets downloaded from the selected GitHub Release.
+
 The demo is intentionally application-neutral. It is the reference integration used to evolve PromptKit without requiring an external consumer to be running.
 
 ## Quality gates
@@ -230,7 +301,7 @@ The demo is intentionally application-neutral. It is the reference integration u
 npm run verify
 ```
 
-The gate runs strict TypeScript checking, tests with coverage thresholds, the production build, and a reference-demo smoke test. Canonical payloads are kept as compatibility fixtures under `tests/compatibility.test.ts`.
+The gate runs strict TypeScript checking, tests with coverage thresholds, the production build, and a reference-demo smoke test. Global statement, branch, function and line coverage are each required to remain at or above 95%. Canonical payloads are kept as compatibility fixtures under `tests/compatibility.test.ts`.
 
 Project-wide compatibility rules live in `AGENTS.md`: breaking changes must never be introduced silently and must be communicated before implementation when unavoidable.
 
@@ -257,17 +328,3 @@ The release workflow:
 6. creates the GitHub Release and attaches the versioned artifacts.
 
 This keeps consumers pinned to an immutable PromptKit release rather than `master`. Applications can vendor the release archive at build/package time and serve its static assets without requiring Node at runtime, or consume the package interface directly when appropriate.
-
-Creating a tag is therefore a publication action, not part of ordinary development. A release is never created automatically from a regular commit.
-
-## GitHub Pages
-
-The project Pages site is release-backed rather than `master`-backed. Whenever a semantic-version GitHub Release is published, the Pages workflow downloads that release's versioned archive and checksum, verifies the archive, and deploys the exact released `dist/` assets with a static interactive demo.
-
-The workflow can also be run manually for an existing release tag. This is useful for bootstrapping the site or redeploying a known release without rebuilding it from mutable source.
-
-GitHub Pages must be configured once with **Settings → Pages → Source → GitHub Actions**. After that one-time repository setting, future releases update the site automatically.
-
-## Status
-
-The foundation includes the versionless wire contract, client, renderer, explicit lifecycle, dynamic theme variants, terminal interaction behavior, compatibility fixtures, reference demo, CI quality gates, versioned release automation and release-backed GitHub Pages deployment.

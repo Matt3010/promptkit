@@ -4,25 +4,30 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
-  <title>PromptKit demo</title>
-  <link rel="stylesheet" href="/dist/styles.css">
+  <meta name="description" content="PromptKit reference demo">
+  <title>PromptKit</title>
+  <link rel="stylesheet" href="./dist/styles.css">
   <style>
-    html, body, #app { height: 100%; margin: 0; }
+    html,
+    body,
+    #app {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      background: #0b0d10;
+    }
+
+    #app.promptkit {
+      height: 100%;
+      min-height: 0;
+    }
   </style>
 </head>
 <body>
   <main id="app"></main>
-  <script type="module">
-    import { PromptKit } from "/dist/index.js";
-
-    const root = document.querySelector("#app");
-    const kit = new PromptKit({ root, loading: { label: "PromptKit", text: "starting" } });
-    try {
-      await kit.start();
-      kit.ready();
-    } catch {
-      // start() already moves PromptKit into the failed lifecycle state.
-    }
-  </script>
+  <script type="module" src="./demo.js"></script>
 </body>
 </html>

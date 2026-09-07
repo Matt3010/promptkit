@@ -19,13 +19,28 @@ try {
 
   const page = await fetch(`${baseUrl}/`);
   assert(page.ok, "demo page did not load");
-  assert((await page.text()).includes("/dist/index.js"), "demo page does not load PromptKit build");
+  const pageHtml = await page.text();
+  assert(pageHtml.includes("./demo.js"), "demo page does not load the shared demo script");
+  assert(pageHtml.includes("./dist/styles.css"), "demo page does not load PromptKit styles");
+
+  const demoScript = await fetch(`${baseUrl}/demo.js`);
+  assert(demoScript.ok, "shared demo script did not load");
+  const demoSource = await demoScript.text();
+  assert(demoSource.includes('from "./dist/index.js"'), "demo script does not load PromptKit build");
+  assert(demoSource.includes('"inspect-files"'), "demo script does not register generic actions");
+
+  const releaseMetadata = await fetch(`${baseUrl}/release.json`);
+  assert(releaseMetadata.status === 404, "local demo should not expose Pages release metadata");
 
   const manifestResponse = await fetch(`${baseUrl}/tui/manifest`);
   assert(manifestResponse.ok, "manifest endpoint failed");
   const manifest = await manifestResponse.json();
   assert(manifest.name === "PromptKit", "unexpected demo manifest");
   assert(Array.isArray(manifest.commands) && manifest.commands.includes("/table"), "demo commands missing");
+  assert(
+    Array.isArray(manifest.actions) && manifest.actions.some((action) => action.id === "inspect-files"),
+    "demo actions missing",
+  );
 
   const commandResponse = await fetch(`${baseUrl}/tui/command`, {
     method: "POST",
@@ -35,6 +50,7 @@ try {
   assert(commandResponse.ok, "command endpoint failed");
   const command = await commandResponse.json();
   assert(command.ok === true && Array.isArray(command.blocks), "invalid command response");
+  assert(Array.isArray(command.indicators), "demo indicators missing");
 
   const controller = new AbortController();
   const eventResponse = await fetch(`${baseUrl}/tui/events`, { signal: controller.signal });

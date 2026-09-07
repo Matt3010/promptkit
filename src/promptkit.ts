@@ -1,5 +1,16 @@
+import {
+  PromptKitActions,
+  type PromptKitActionHandler,
+  type PromptKitActionResult,
+} from "./actions.js";
 import { PromptKitClient, type PromptKitClientOptions } from "./client.js";
-import type { PromptKitBlock, PromptKitManifest } from "./protocol.js";
+import type {
+  PromptKitBlock,
+  PromptKitEvent,
+  PromptKitIndicator,
+  PromptKitManifest,
+  PromptKitState,
+} from "./protocol.js";
 import { PromptKitRenderer, type PromptKitRendererOptions } from "./renderer.js";
 
 export type PromptKitFocusScope = "screen" | "document";
@@ -18,12 +29,17 @@ export interface PromptKitOptions {
   rendererOptions?: PromptKitRendererOptions;
   loading?: PromptKitLoadingOptions;
   focusScope?: PromptKitFocusScope;
+  /** Host-side implementations for action ids declared by the manifest or indicators. */
+  actions?: Record<string, PromptKitActionHandler>;
 }
+
+type PromptKitPresentationUpdate = PromptKitActionResult | PromptKitEvent;
 
 export class PromptKit {
   readonly #root: HTMLElement;
   readonly #client: PromptKitClient;
   readonly #renderer: PromptKitRenderer;
+  readonly #actions: PromptKitActions;
   readonly #history: string[] = [];
   readonly #pendingBlocks: PromptKitBlock[] = [];
   readonly #document: Document;
@@ -110,6 +126,15 @@ export class PromptKit {
     this.#screen.append(this.#loading, this.#line);
     this.#root.append(this.#screen);
 
+    this.#actions = new PromptKitActions({
+      root: this.#root,
+      document: this.#document,
+      screen: this.#screen,
+      line: this.#line,
+      handlers: options.actions,
+      applyResult: (result) => this.#applyUpdate(result),
+    });
+
     this.#input.addEventListener("keydown", this.#onKeyDown);
     this.#input.addEventListener("keyup", this.#refreshSuggestion);
     this.#input.addEventListener("input", this.#refreshSuggestion);
@@ -136,16 +161,13 @@ export class PromptKit {
       this.#manifest = manifest;
       this.#prompt.textContent = manifest.prompt ?? ">";
       this.#renderer.applyTheme(this.#root, manifest.theme);
+      this.#actions.configure(manifest.actions ?? []);
       this.#refreshSuggestion();
 
       if (manifest.events) {
         this.#closeEvents = this.#client.events(
           manifest.events.url,
-          (event) => {
-            if (event.themeVariant !== undefined) this.setThemeVariant(event.themeVariant);
-            if (event.state) this.#applyState(event.state);
-            if (event.blocks) this.write(event.blocks);
-          },
+          (event) => this.#applyUpdate(event),
           () => this.#root.dataset.connection = "degraded",
         );
         this.#root.dataset.connection = "connected";
@@ -198,6 +220,22 @@ export class PromptKit {
     else this.#root.dataset.themeVariant = applied;
   }
 
+  /** Replace the complete visible indicator set. */
+  public setIndicators(indicators: PromptKitIndicator[]): void {
+    this.#assertAlive();
+    this.#actions.setIndicators(indicators);
+  }
+
+  /** Run an action directly. Manifest triggers and indicators call the same registry. */
+  public async runAction(id: string, payload?: unknown): Promise<void> {
+    this.#assertAlive();
+    if (this.#phase !== "ready") throw new Error("PromptKit actions are only available when ready");
+    await this.#actions.run(
+      id,
+      payload === undefined ? { trigger: "manual" } : { trigger: "manual", payload },
+    );
+  }
+
   public write(blocks: PromptKitBlock[]): void {
     this.#assertAlive();
     if (blocks.length === 0) return;
@@ -225,6 +263,7 @@ export class PromptKit {
     this.#destroyed = true;
     this.#closeEvents?.();
     this.#closeEvents = null;
+    this.#actions.destroy();
     this.#input.removeEventListener("keydown", this.#onKeyDown);
     this.#input.removeEventListener("keyup", this.#refreshSuggestion);
     this.#input.removeEventListener("input", this.#refreshSuggestion);
@@ -250,15 +289,20 @@ export class PromptKit {
     try {
       const response = await this.#client.command(rawInput);
       if (this.#destroyed) return;
-      if (response.themeVariant !== undefined) this.setThemeVariant(response.themeVariant);
-      if (response.clear === true) this.clear();
-      this.write(response.blocks);
-      if (response.state) this.#applyState(response.state);
+      this.#applyUpdate(response);
     } catch (error) {
       if (this.#destroyed) return;
       const message = error instanceof Error ? error.message : String(error);
       this.write([{ type: "text", text: message, tone: "danger" }]);
     }
+  }
+
+  #applyUpdate(update: PromptKitPresentationUpdate): void {
+    if (update.themeVariant !== undefined) this.setThemeVariant(update.themeVariant);
+    if (update.clear === true) this.clear();
+    if (update.blocks) this.write(update.blocks);
+    if (update.state) this.#applyState(update.state);
+    if (update.indicators) this.setIndicators(update.indicators);
   }
 
   #writeBanner(manifest: PromptKitManifest): void {
@@ -274,7 +318,7 @@ export class PromptKit {
     this.#scrollToBottom();
   }
 
-  #applyState(state: Record<string, string | number | boolean | null>): void {
+  #applyState(state: PromptKitState): void {
     for (const [key, value] of Object.entries(state)) {
       const normalized = dataKey(key);
       if (value === null) delete this.#root.dataset[normalized];
