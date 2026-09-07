@@ -6,6 +6,7 @@ import {
 import { PromptKitClient, type PromptKitClientOptions } from "./client.js";
 import type {
   PromptKitBlock,
+  PromptKitCommandResponse,
   PromptKitEvent,
   PromptKitIndicator,
   PromptKitManifest,
@@ -15,6 +16,7 @@ import { PromptKitRenderer, type PromptKitRendererOptions } from "./renderer.js"
 
 export type PromptKitFocusScope = "screen" | "document";
 export type PromptKitPhase = "loading" | "ready" | "failed";
+export type PromptKitUpdate = PromptKitActionResult | PromptKitCommandResponse | PromptKitEvent;
 
 export interface PromptKitLoadingOptions {
   label?: string;
@@ -31,9 +33,9 @@ export interface PromptKitOptions {
   focusScope?: PromptKitFocusScope;
   /** Host-side implementations for action ids declared by the manifest or indicators. */
   actions?: Record<string, PromptKitActionHandler>;
+  /** Called after any command, action, event or public apply() update has been applied. */
+  onUpdate?: (update: PromptKitUpdate) => void;
 }
-
-type PromptKitPresentationUpdate = PromptKitActionResult | PromptKitEvent;
 
 export class PromptKit {
   readonly #root: HTMLElement;
@@ -42,6 +44,7 @@ export class PromptKit {
   readonly #actions: PromptKitActions;
   readonly #history: string[] = [];
   readonly #pendingBlocks: PromptKitBlock[] = [];
+  readonly #keyedBlocks = new Map<string, HTMLElement>();
   readonly #document: Document;
   readonly #screen: HTMLDivElement;
   readonly #loading: HTMLDivElement;
@@ -54,6 +57,7 @@ export class PromptKit {
   readonly #line: HTMLDivElement;
   readonly #focusScope: PromptKitFocusScope;
   readonly #visualViewport: VisualViewport | null;
+  readonly #onUpdate: ((update: PromptKitUpdate) => void) | undefined;
 
   #manifest: PromptKitManifest | null = null;
   #historyIndex = 0;
@@ -69,6 +73,7 @@ export class PromptKit {
     this.#renderer = options.renderer ?? new PromptKitRenderer({ document: this.#document, ...options.rendererOptions });
     this.#focusScope = options.focusScope ?? "document";
     this.#visualViewport = this.#document.defaultView?.visualViewport ?? null;
+    this.#onUpdate = options.onUpdate;
 
     this.#root.classList.add("promptkit");
     this.#root.replaceChildren();
@@ -166,7 +171,7 @@ export class PromptKit {
 
       if (manifest.events) {
         this.#closeEvents = this.#client.events(
-          manifest.events.url,
+          manifest.events,
           (event) => this.#applyUpdate(event),
           () => this.#root.dataset.connection = "degraded",
         );
@@ -236,21 +241,35 @@ export class PromptKit {
     );
   }
 
+  /** Apply a structured update received from any host-defined source. */
+  public apply(update: PromptKitUpdate): void {
+    this.#assertAlive();
+    this.#applyUpdate(update);
+  }
+
   public write(blocks: PromptKitBlock[]): void {
     this.#assertAlive();
     if (blocks.length === 0) return;
     if (this.#phase !== "ready") {
-      this.#pendingBlocks.push(...blocks);
+      for (const block of blocks) this.#queueBlock(block);
       return;
     }
+
     const pinned = this.#isPinnedToBottom();
-    this.#screen.insertBefore(this.#renderer.renderAll(blocks), this.#line);
+    for (const block of blocks) {
+      const element = this.#renderer.render(block);
+      const existing = block.id && block.update === "replace" ? this.#keyedBlocks.get(block.id) : undefined;
+      if (existing?.isConnected) existing.replaceWith(element);
+      else this.#screen.insertBefore(element, this.#line);
+      if (block.id) this.#keyedBlocks.set(block.id, element);
+    }
     if (pinned) this.#scrollToBottom();
   }
 
   public clear(): void {
     this.#assertAlive();
     this.#pendingBlocks.length = 0;
+    this.#keyedBlocks.clear();
     if (this.#phase !== "ready") return;
     while (this.#screen.firstChild && this.#screen.firstChild !== this.#line) {
       this.#screen.firstChild.remove();
@@ -264,6 +283,7 @@ export class PromptKit {
     this.#closeEvents?.();
     this.#closeEvents = null;
     this.#actions.destroy();
+    this.#keyedBlocks.clear();
     this.#input.removeEventListener("keydown", this.#onKeyDown);
     this.#input.removeEventListener("keyup", this.#refreshSuggestion);
     this.#input.removeEventListener("input", this.#refreshSuggestion);
@@ -297,12 +317,25 @@ export class PromptKit {
     }
   }
 
-  #applyUpdate(update: PromptKitPresentationUpdate): void {
+  #applyUpdate(update: PromptKitUpdate): void {
     if (update.themeVariant !== undefined) this.setThemeVariant(update.themeVariant);
     if (update.clear === true) this.clear();
     if (update.blocks) this.write(update.blocks);
     if (update.state) this.#applyState(update.state);
     if (update.indicators) this.setIndicators(update.indicators);
+    this.#onUpdate?.(update);
+  }
+
+  #queueBlock(block: PromptKitBlock): void {
+    if (block.id && block.update === "replace") {
+      for (let index = this.#pendingBlocks.length - 1; index >= 0; index -= 1) {
+        if (this.#pendingBlocks[index]?.id === block.id) {
+          this.#pendingBlocks[index] = block;
+          return;
+        }
+      }
+    }
+    this.#pendingBlocks.push(block);
   }
 
   #writeBanner(manifest: PromptKitManifest): void {
