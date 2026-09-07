@@ -1,5 +1,3 @@
-export const PROMPTKIT_PROTOCOL_VERSION = 2 as const;
-
 export type PromptKitTone =
   | "primary"
   | "secondary"
@@ -28,7 +26,6 @@ export interface PromptKitTheme {
 }
 
 export interface PromptKitManifest {
-  protocol: typeof PROMPTKIT_PROTOCOL_VERSION;
   name: string;
   prompt?: string;
   subtitle?: string;
@@ -118,9 +115,7 @@ export interface PromptKitEvent {
 }
 
 export function isPromptKitManifest(value: unknown): value is PromptKitManifest {
-  if (!isRecord(value) || value.protocol !== PROMPTKIT_PROTOCOL_VERSION || typeof value.name !== "string") {
-    return false;
-  }
+  if (!isRecord(value) || typeof value.name !== "string") return false;
   if (value.prompt !== undefined && typeof value.prompt !== "string") return false;
   if (value.subtitle !== undefined && typeof value.subtitle !== "string") return false;
   if (value.commands !== undefined) {
