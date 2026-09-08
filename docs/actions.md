@@ -1,6 +1,27 @@
 # Actions
 
-PromptKit actions are declared by the manifest and implemented by host handlers.
+PromptKit actions are declared by the manifest and implemented by host handlers. Presentation feedback stays declarative so integrating an action does not require extra UI callbacks.
+
+## Minimal integration
+
+A consumer should only implement application behavior:
+
+```ts
+const kit = new PromptKit({
+  root: document.querySelector("#app"),
+  actions: {
+    "import-config": async ({ files }) => {
+      await importConfig(files[0]);
+      return undefined;
+    },
+  },
+});
+
+await kit.start();
+kit.ready();
+```
+
+The manifest owns labels, triggers and optional presentation feedback. The consumer does not need to wire chooser text, drop echoes or error rendering callbacks.
 
 ## Typed results
 
@@ -24,11 +45,11 @@ The public handler contract deliberately uses `undefined`, not `void`:
   | Promise<PromptKitActionResult | undefined>
 ```
 
-This means that no response is valid, while any response that is present must satisfy the typed `PromptKitActionResult` contract. PromptKit also validates present action results at runtime before applying them, so JavaScript consumers receive the same protection against malformed responses.
+No response is valid. Any response that is present must satisfy `PromptKitActionResult`. PromptKit validates present results at runtime too, so JavaScript consumers receive the same protection against malformed responses.
 
-## Optional action echo
+## Declarative feedback
 
-An action can opt into terminal feedback before its handler runs. The first echo mode is `drop-files`:
+An action may declare `feedback.before` and `feedback.error`. Each one is a normal `PromptKitSnapshot`, so the host can use PromptKit blocks without writing presentation code in the browser:
 
 ```json
 {
@@ -41,19 +62,71 @@ An action can opt into terminal feedback before its handler runs. The first echo
       "multiple": false
     }
   ],
-  "echo": {
-    "type": "drop-files",
-    "tone": "secondary"
+  "feedback": {
+    "before": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "importing {{files[0].name}}...",
+          "tone": "secondary"
+        }
+      ]
+    },
+    "error": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "import failed: {{error.message}}",
+          "tone": "danger"
+        }
+      ]
+    }
   }
 }
 ```
 
-For a single dropped file PromptKit emits a text block such as:
+Feedback is optional. If it is absent, PromptKit does not invent an action-specific echo. Handler errors still have a generic safe fallback.
+
+## Template context
+
+PromptKit resolves only a small, validated set of placeholders:
 
 ```text
-file: config.json
+{{action.id}}
+{{action.label}}
+{{files.count}}
+{{files[0].name}}
+{{files[0].type}}
+{{files[0].size}}
+{{indicator.id}}
+{{indicator.label}}
+{{payload}}
+{{error.message}}
 ```
 
-For multiple files it emits all names in one text block. Echo is opt-in: actions without `echo` retain their previous behavior. When several drop actions match, the chooser is shown first and the echo is emitted only for the action the user actually selects.
+File indexes may be any non-negative integer. Unknown or malformed placeholders make the manifest invalid instead of leaking `undefined` into the UI. A supported placeholder whose context is not available for the current trigger resolves to an empty string.
 
-The echo belongs to presentation. The host handler still owns the action semantics and may return a typed result or `undefined`.
+The action-context mapping is exhaustive in TypeScript. Adding a new trigger type requires the PromptKit implementation to handle its template context before the build can pass.
+
+## Generic action UI
+
+The manifest may customize chooser and no-match presentation once for all actions:
+
+```json
+{
+  "actionUi": {
+    "chooserLabel": "choose what to do with {{files.count}} files",
+    "noMatch": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "unsupported file: {{files[0].name}}",
+          "tone": "warning"
+        }
+      ]
+    }
+  }
+}
+```
+
+If `chooserLabel` is omitted, PromptKit uses only the selected filenames, which is language-neutral. If `noMatch` is omitted, PromptKit shows a generic warning. Applications that care about wording or localization can override it without adding browser callbacks.
