@@ -7,6 +7,7 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
 const port = Number(process.env.PORT ?? 4173);
 const clients = new Set();
 let progress = 20;
+let replacementCounter = 0;
 
 const manifest = {
   name: "PromptKit",
@@ -19,9 +20,14 @@ const manifest = {
     "/code",
     "/progress",
     "/download",
+    "/download-auto",
+    "/separator",
+    "/replace",
+    "/indicators",
     "/theme cool",
     "/theme warm",
     "/theme default",
+    "/clear",
     "/error",
   ],
   actions: [
@@ -29,6 +35,12 @@ const manifest = {
       id: "inspect-files",
       label: "inspect JSON files",
       tone: "special",
+      triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+    },
+    {
+      id: "summarize-files",
+      label: "summarize JSON files",
+      tone: "info",
       triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
     },
   ],
@@ -50,6 +62,7 @@ const manifest = {
       warm: { accent: "#e8973a", accentMuted: "#ab7a44" },
     },
   },
+  bootstrap: { url: "/tui/bootstrap" },
   events: { url: "/tui/events" },
 };
 
@@ -62,15 +75,20 @@ const commandHandlers = new Map([
         columns: ["command", "purpose"],
         rows: [
           ["/status", "status blocks and state"],
-          ["/table", "structured table"],
+          ["/table", "structured table and full-width row"],
           ["/code", "code block"],
           ["/progress", "bounded progress"],
-          ["/download", "browser download"],
+          ["/download", "manual browser download"],
+          ["/download-auto", "automatic browser download"],
+          ["/separator", "separator block"],
+          ["/replace", "keyed in-place replacement"],
+          ["/indicators", "pulse, hidden and actionable indicators"],
           ["/theme cool", "switch to the cool theme variant"],
           ["/theme warm", "switch to the warm theme variant"],
           ["/theme default", "return to the default theme"],
+          ["/clear", "clear terminal output"],
           ["/error", "danger output"],
-          ["drop .json", "run the generic inspect-files action"],
+          ["drop .json", "open the generic action chooser"],
         ],
       },
     ],
@@ -90,7 +108,12 @@ const commandHandlers = new Map([
       {
         type: "table",
         columns: ["service", "state", "latency"],
-        rows: [["database", "healthy", "3 ms"], ["cache", "healthy", "1 ms"], ["events", "connected", "live"]],
+        rows: [
+          ["Core services"],
+          ["database", "healthy", "3 ms"],
+          ["cache", "healthy", "1 ms"],
+          ["events", "connected", "live"],
+        ],
       },
     ],
   })],
@@ -116,6 +139,46 @@ const commandHandlers = new Map([
       mediaType: "application/json",
     }],
   })],
+  ["/download-auto", () => ({
+    ok: true,
+    blocks: [{
+      type: "download",
+      label: "automatic demo download",
+      filename: "promptkit-auto.json",
+      content: JSON.stringify({ generatedBy: "PromptKit", behavior: "auto" }, null, 2),
+      mediaType: "application/json",
+      behavior: "auto",
+    }],
+  })],
+  ["/separator", () => ({
+    ok: true,
+    blocks: [
+      { type: "text", text: "before separator", tone: "secondary" },
+      { type: "separator" },
+      { type: "text", text: "after separator", tone: "secondary" },
+    ],
+  })],
+  ["/replace", () => {
+    replacementCounter += 1;
+    return {
+      ok: true,
+      blocks: [{
+        type: "text",
+        id: "replace-demo",
+        update: "replace",
+        text: `keyed replacement #${replacementCounter}`,
+        tone: "info",
+      }],
+    };
+  }],
+  ["/indicators", () => ({
+    ok: true,
+    blocks: [{ type: "text", text: "Click the pulsing indicator to clear indicators.", tone: "info" }],
+    indicators: [
+      { id: "pulse", label: "pulsing", tone: "special", pulse: true, action: "clear-indicators" },
+      { id: "hidden", label: "hidden", tone: "secondary", active: false },
+    ],
+  })],
   ["/theme cool", () => ({
     ok: true,
     blocks: [{ type: "text", text: "cool theme", tone: "primary" }],
@@ -131,6 +194,7 @@ const commandHandlers = new Map([
     blocks: [{ type: "text", text: "default theme", tone: "primary" }],
     themeVariant: null,
   })],
+  ["/clear", () => ({ ok: true, clear: true, blocks: [], indicators: [] })],
   ["/error", () => ({
     ok: false,
     blocks: [{ type: "text", text: "This is a demo error block.", tone: "danger" }],
@@ -142,6 +206,13 @@ const server = createServer(async (request, response) => {
 
   if (request.method === "GET" && url.pathname === "/tui/manifest") {
     return json(response, 200, manifest);
+  }
+
+  if (request.method === "GET" && url.pathname === "/tui/bootstrap") {
+    return json(response, 200, {
+      blocks: [{ type: "status", label: "bootstrap", value: "loaded", tone: "success" }],
+      state: { bootstrap: "loaded" },
+    });
   }
 
   if (request.method === "POST" && url.pathname === "/tui/command") {
@@ -177,7 +248,14 @@ setInterval(() => {
   if (clients.size === 0) return;
   const payload = `data: ${JSON.stringify({
     id: crypto.randomUUID(),
-    blocks: [{ type: "status", label: "heartbeat", value: new Date().toISOString(), tone: "secondary" }],
+    blocks: [{
+      type: "status",
+      id: "heartbeat",
+      update: "replace",
+      label: "heartbeat",
+      value: new Date().toISOString(),
+      tone: "secondary",
+    }],
   })}\n\n`;
   for (const client of clients) client.write(payload);
 }, 15_000).unref();
