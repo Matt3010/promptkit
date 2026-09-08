@@ -6,6 +6,7 @@ on:
       - "v*.*.*"
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
@@ -76,3 +77,9 @@ jobs:
             --title "PromptKit $TAG_NAME" \
             --generate-notes \
             --verify-tag
+
+      - name: Deploy release to GitHub Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref master -f tag="$TAG_NAME"
