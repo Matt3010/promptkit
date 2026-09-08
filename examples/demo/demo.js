@@ -76,10 +76,12 @@ function staticClient(releaseMetadata) {
     "/separator",
     "/replace",
     "/indicators",
+    "/tones",
     "/theme cool",
     "/theme warm",
     "/theme default",
     "/clear",
+    "/error",
   ];
 
   return {
@@ -127,6 +129,7 @@ function staticClient(releaseMetadata) {
       return {
         blocks: [{ type: "status", label: "Bootstrap", value: "loaded", tone: "success" }],
         state: { bootstrap: "loaded" },
+        indicators: [{ id: "bootstrap", label: "bootstrapped", tone: "success" }],
       };
     },
 
@@ -140,7 +143,7 @@ function staticClient(releaseMetadata) {
               columns: ["Command", "Purpose"],
               rows: [
                 ["/status", "Show release metadata, state and indicators"],
-                ["/table", "Render a table block"],
+                ["/table", "Render a table including a full-width row"],
                 ["/code", "Render a code block"],
                 ["/progress", "Render a progress block"],
                 ["/download", "Render a manual download block"],
@@ -148,10 +151,12 @@ function staticClient(releaseMetadata) {
                 ["/separator", "Render a separator block"],
                 ["/replace", "Replace a keyed block in place"],
                 ["/indicators", "Show pulse, hidden and actionable indicators"],
+                ["/tones", "Render every semantic tone"],
                 ["/theme cool", "Switch to the cool theme"],
                 ["/theme warm", "Switch to the warm theme"],
                 ["/theme default", "Return to the default theme"],
                 ["/clear", "Clear terminal output"],
+                ["/error", "Render an unsuccessful command response"],
                 ["drop .json", "Open the generic action chooser"],
               ],
             },
@@ -171,7 +176,7 @@ function staticClient(releaseMetadata) {
             {
               type: "table",
               columns: ["Id", "State"],
-              rows: [["section", ""], ["42", "ready"], ["43", "running"], ["44", "complete"]],
+              rows: [["Example rows"], ["42", "ready"], ["43", "running"], ["44", "complete"]],
             },
           ]);
         case "/code":
@@ -230,6 +235,16 @@ function staticClient(releaseMetadata) {
               { id: "hidden", label: "hidden", tone: "secondary", active: false },
             ],
           };
+        case "/tones":
+          return response([
+            { type: "text", text: "primary", tone: "primary" },
+            { type: "text", text: "secondary", tone: "secondary" },
+            { type: "text", text: "success", tone: "success" },
+            { type: "text", text: "warning", tone: "warning" },
+            { type: "text", text: "danger", tone: "danger" },
+            { type: "text", text: "info", tone: "info" },
+            { type: "text", text: "special", tone: "special" },
+          ]);
         case "/theme cool":
           return { ...response([{ type: "text", text: "Cool theme", tone: "primary" }]), themeVariant: "cool" };
         case "/theme warm":
@@ -238,6 +253,8 @@ function staticClient(releaseMetadata) {
           return { ...response([{ type: "text", text: "Default theme", tone: "primary" }]), themeVariant: null };
         case "/clear":
           return { ok: true, clear: true, blocks: [], indicators: [] };
+        case "/error":
+          return response([{ type: "text", text: "This is a demo error block.", tone: "danger" }], false);
         default:
           return response([{ type: "text", text: `Unknown command: ${input}`, tone: "danger" }], false);
       }
