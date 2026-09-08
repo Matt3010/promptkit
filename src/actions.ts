@@ -158,7 +158,14 @@ export class PromptKitActions {
     error?: unknown,
   ): PromptKitTemplateValues {
     const values: PromptKitTemplateValues = {
-      ...(definition ? { action: { id: definition.id, label: definition.label } } : {}),
+      ...(definition
+        ? {
+            action:
+              definition.label === undefined
+                ? { id: definition.id }
+                : { id: definition.id, label: definition.label },
+          }
+        : {}),
       ...(error === undefined ? {} : { error }),
     };
 
@@ -172,6 +179,8 @@ export class PromptKitActions {
       case "manual":
         if (context.payload !== undefined) values.payload = context.payload;
         break;
+      default:
+        assertNever(context);
     }
     return values;
   }
@@ -281,4 +290,8 @@ function matchesAccept(file: File, accept: string[]): boolean {
     if (rule.includes("/")) return mime === rule;
     return name === rule;
   });
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled PromptKit action context: ${String(value)}`);
 }
