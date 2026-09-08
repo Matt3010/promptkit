@@ -16,6 +16,38 @@ It provides a responsive terminal rendered in the browser, with command history,
 - Optional realtime events without making realtime mandatory.
 - Explicit compatibility rules for public API and wire-format changes.
 
+## Quick start
+
+PromptKit is intentionally small to initialize. A normal consumer only needs:
+
+```ts
+const kit = new PromptKit({ root });
+
+await kit.start();
+kit.ready();
+```
+
+`start()` loads the manifest, applies an optional bootstrap snapshot, and opens optional live events. The host calls `ready()` when command input may become available.
+
+If the application declares actions, constructor code still contains only application behavior:
+
+```ts
+const kit = new PromptKit({
+  root,
+  actions: {
+    "import-config": async ({ files }) => {
+      await importConfig(files[0]);
+      return undefined;
+    },
+  },
+});
+
+await kit.start();
+kit.ready();
+```
+
+Action labels, chooser wording, pre-action feedback, no-match feedback, and error presentation are declarative manifest data. They do not require extra browser callbacks.
+
 ## Protocol
 
 A host exposes a small conceptual HTTP surface:
@@ -99,22 +131,21 @@ Unknown block types are rejected by the protocol validator. New types require an
 PromptKit owns the terminal startup experience. Construction immediately renders a terminal-style loading state; `start()` loads the manifest, applies the optional bootstrap snapshot, then opens optional live events. The terminal deliberately remains unavailable until the host calls `ready()`.
 
 ```ts
-const kit = new PromptKit({
-  root,
-  loading: {
-    label: "example-app",
-    text: "starting",
-  },
-});
+const kit = new PromptKit({ root });
 
-try {
-  await kit.start();
-  await initializeRemainingHostState();
-  kit.ready();
-} catch {
-  // start() already moves PromptKit into the failed lifecycle state.
-}
+await kit.start();
+kit.ready();
 ```
+
+If the host has additional asynchronous initialization that must finish before input becomes available, keep it explicitly between the two lifecycle calls:
+
+```ts
+await kit.start();
+await initializeRemainingHostState();
+kit.ready();
+```
+
+`start()` already moves PromptKit into the failed lifecycle state if PromptKit initialization itself fails. Catch the error only when the host needs additional handling.
 
 When `manifest.bootstrap` is present, PromptKit performs an idempotent GET and applies the returned snapshot before opening the event stream. This avoids using arbitrary command POSTs as initialization retries and guarantees that a stale bootstrap response cannot overwrite a newer SSE update.
 
@@ -174,13 +205,24 @@ PromptKit exposes a generic action registry so interactions do not need one-off 
           "accept": [".json", "application/json"],
           "multiple": false
         }
-      ]
+      ],
+      "feedback": {
+        "before": {
+          "blocks": [
+            {
+              "type": "text",
+              "text": "importing {{files[0].name}}...",
+              "tone": "secondary"
+            }
+          ]
+        }
+      }
     }
   ]
 }
 ```
 
-The host registers the behavior:
+The host registers only the behavior:
 
 ```ts
 const kit = new PromptKit({
@@ -196,9 +238,11 @@ const kit = new PromptKit({
 });
 ```
 
+An action handler returns `PromptKitActionResult | undefined`; `undefined` means that the action has no UI response. A present result is validated at runtime as well as by TypeScript.
+
 `runAction(id, payload?)` invokes the same registry manually. Drop is the first declarative trigger; additional trigger kinds can be added without growing the main PromptKit constructor with interaction-specific callbacks.
 
-If more than one action accepts the same drop, PromptKit renders a terminal-style chooser instead of inferring host semantics.
+If more than one action accepts the same drop, PromptKit renders a terminal-style chooser instead of inferring host semantics. Chooser wording, no-match feedback and action feedback can be declared in the manifest without browser callbacks.
 
 ## Indicators
 
@@ -275,7 +319,7 @@ new PromptKit({ root, focusScope: "screen" });
 
 ## Reference demo
 
-The repository includes a zero-dependency Node reference backend that exercises the public presentation capabilities that can be meaningfully demonstrated interactively: bootstrap, every block type, semantic tones, theme variants, state, manual and automatic downloads, keyed replacement, clear semantics, successful and unsuccessful responses, actions, the multi-action drop chooser, indicators and SSE events.
+The repository includes a zero-dependency Node reference backend that exercises the public presentation capabilities that can be meaningfully demonstrated interactively: bootstrap, every block type, semantic tones, theme variants, state, manual and automatic downloads, keyed replacement, clear semantics, successful and unsuccessful responses, actions, declarative action feedback, the multi-action drop chooser, indicators and SSE events.
 
 ```bash
 npm install
@@ -303,7 +347,7 @@ Then open `http://127.0.0.1:4173` and try:
 /error
 ```
 
-Run `/replace` more than once to see a stable keyed block update in place. `/indicators` demonstrates pulsing, hidden and actionable indicators. Drop a JSON file onto the terminal to open a chooser between two matching generic actions.
+Run `/replace` more than once to see a stable keyed block update in place. `/indicators` demonstrates pulsing, hidden and actionable indicators. Drop a JSON file onto the terminal to open a chooser between matching generic actions and exercise declarative action feedback.
 
 The local demo uses the real HTTP manifest, bootstrap, command and SSE endpoints. Its first SSE frame includes a keyed replacement block so live-update behavior is immediately visible without waiting for the periodic heartbeat.
 

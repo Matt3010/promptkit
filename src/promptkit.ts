@@ -167,7 +167,7 @@ export class PromptKit {
       this.#manifest = manifest;
       this.#prompt.textContent = manifest.prompt ?? ">";
       this.#renderer.applyTheme(this.#root, manifest.theme);
-      this.#actions.configure(manifest.actions ?? []);
+      this.#actions.configure(manifest.actions ?? [], manifest.actionUi);
       this.#refreshSuggestion();
 
       if (manifest.bootstrap) {

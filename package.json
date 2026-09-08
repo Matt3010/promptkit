@@ -1,6 +1,6 @@
 {
   "name": "@matt3010/promptkit",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Backend-agnostic web terminal UI with a small structured protocol.",
   "type": "module",
@@ -28,7 +28,7 @@
     "build:browser": "esbuild src/index.ts --bundle --format=esm --platform=browser --target=es2022 --outfile=dist/promptkit.browser.js",
     "browser:smoke": "node scripts/smoke-browser-bundle.mjs",
     "demo": "npm run build && node examples/demo/server.mjs",
-    "demo:smoke": "node scripts/smoke-demo.mjs && node scripts/smoke-action-echo.mjs",
+    "demo:smoke": "node scripts/smoke-demo.mjs && node scripts/smoke-action-feedback.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

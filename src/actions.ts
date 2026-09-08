@@ -1,10 +1,15 @@
 import type {
   PromptKitActionDefinition,
-  PromptKitBlock,
+  PromptKitActionUi,
   PromptKitIndicator,
   PromptKitSnapshot,
 } from "./protocol.js";
 import { isPromptKitSnapshot } from "./protocol.js";
+import {
+  resolvePromptKitSnapshotTemplate,
+  resolvePromptKitTextTemplate,
+  type PromptKitTemplateValues,
+} from "./templates.js";
 
 export type PromptKitActionContext =
   | { trigger: "drop"; files: File[] }
@@ -40,6 +45,7 @@ export class PromptKitActions {
   readonly #indicators: HTMLDivElement;
 
   #definitions: PromptKitActionDefinition[] = [];
+  #ui: PromptKitActionUi = {};
   #chooser: HTMLDivElement | null = null;
   #destroyed = false;
 
@@ -61,9 +67,13 @@ export class PromptKitActions {
     this.#document.addEventListener("drop", this.#onDrop);
   }
 
-  public configure(definitions: PromptKitActionDefinition[]): void {
+  public configure(
+    definitions: PromptKitActionDefinition[],
+    ui: PromptKitActionUi = {},
+  ): void {
     this.#assertAlive();
     this.#definitions = [...definitions];
+    this.#ui = { ...ui };
   }
 
   public setIndicators(indicators: PromptKitIndicator[]): void {
@@ -100,9 +110,12 @@ export class PromptKitActions {
     if (!handler) throw new Error(`PromptKit action handler not found: ${id}`);
 
     const definition = this.#definitions.find((candidate) => candidate.id === id);
-    if (definition?.echo) this.#echo(definition, context);
 
     try {
+      if (definition?.feedback?.before) {
+        this.#applyTemplate(definition.feedback.before, this.#templateValues(definition, context));
+      }
+
       const result = await handler(context);
       if (result === undefined) return;
       if (!isPromptKitSnapshot(result)) {
@@ -110,6 +123,14 @@ export class PromptKitActions {
       }
       this.#applyResult(result);
     } catch (error) {
+      if (definition?.feedback?.error) {
+        this.#applyTemplate(
+          definition.feedback.error,
+          this.#templateValues(definition, context, error),
+        );
+        return;
+      }
+
       const message = error instanceof Error ? error.message : String(error);
       this.#applyResult({ blocks: [{ type: "text", text: message, tone: "danger" }] });
     }
@@ -127,22 +148,41 @@ export class PromptKitActions {
     delete this.#root.dataset.dragging;
   }
 
-  #echo(definition: PromptKitActionDefinition, context: PromptKitActionContext): void {
-    const echo = definition.echo;
-    if (!echo) return;
+  #applyTemplate(template: PromptKitSnapshot, values: PromptKitTemplateValues): void {
+    this.#applyResult(resolvePromptKitSnapshotTemplate(template, values));
+  }
 
-    switch (echo.type) {
-      case "drop-files": {
-        if (context.trigger !== "drop" || context.files.length === 0) return;
-        const text = context.files.length === 1
-          ? `file: ${context.files[0]?.name ?? ""}`
-          : `files: ${context.files.map((file) => file.name).join(", ")}`;
-        this.#applyResult({
-          blocks: [{ type: "text", text, tone: echo.tone ?? "secondary" }],
-        });
-        return;
-      }
+  #templateValues(
+    definition: PromptKitActionDefinition | undefined,
+    context: PromptKitActionContext,
+    error?: unknown,
+  ): PromptKitTemplateValues {
+    const values: PromptKitTemplateValues = {
+      ...(definition
+        ? {
+            action:
+              definition.label === undefined
+                ? { id: definition.id }
+                : { id: definition.id, label: definition.label },
+          }
+        : {}),
+      ...(error === undefined ? {} : { error }),
+    };
+
+    switch (context.trigger) {
+      case "drop":
+        values.files = context.files;
+        break;
+      case "indicator":
+        values.indicator = context.indicator;
+        break;
+      case "manual":
+        if (context.payload !== undefined) values.payload = context.payload;
+        break;
+      default:
+        assertNever(context);
     }
+    return values;
   }
 
   #dropCandidates(files: File[]): DropCandidate[] {
@@ -174,7 +214,9 @@ export class PromptKitActions {
 
     const label = this.#document.createElement("span");
     label.className = "pk-action-chooser-label";
-    label.textContent = files.length === 1 ? `file: ${files[0]?.name ?? ""}` : `${files.length} files`;
+    label.textContent = this.#ui.chooserLabel
+      ? resolvePromptKitTextTemplate(this.#ui.chooserLabel, { files })
+      : files.map((file) => file.name).join(", ");
     chooser.append(label);
 
     for (const candidate of candidates) {
@@ -214,9 +256,13 @@ export class PromptKitActions {
     if (files.length === 0) return;
     const candidates = this.#dropCandidates(files);
     if (candidates.length === 0) {
-      this.#applyResult({
-        blocks: [{ type: "text", text: "nessuna azione disponibile per i file selezionati", tone: "warning" }],
-      });
+      if (this.#ui.noMatch) {
+        this.#applyTemplate(this.#ui.noMatch, { files });
+      } else {
+        this.#applyResult({
+          blocks: [{ type: "text", text: "No matching action", tone: "warning" }],
+        });
+      }
       return;
     }
     if (candidates.length === 1) {
@@ -244,4 +290,8 @@ function matchesAccept(file: File, accept: string[]): boolean {
     if (rule.includes("/")) return mime === rule;
     return name === rule;
   });
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled PromptKit action context: ${String(value)}`);
 }

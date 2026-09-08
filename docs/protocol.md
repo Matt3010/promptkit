@@ -25,9 +25,41 @@ Returns terminal metadata.
           "accept": [".json", "application/json"],
           "multiple": false
         }
-      ]
+      ],
+      "feedback": {
+        "before": {
+          "blocks": [
+            {
+              "type": "text",
+              "text": "importing {{files[0].name}}...",
+              "tone": "secondary"
+            }
+          ]
+        },
+        "error": {
+          "blocks": [
+            {
+              "type": "text",
+              "text": "import failed: {{error.message}}",
+              "tone": "danger"
+            }
+          ]
+        }
+      }
     }
   ],
+  "actionUi": {
+    "chooserLabel": "choose what to do with {{files.count}} files",
+    "noMatch": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "unsupported file: {{files[0].name}}",
+          "tone": "warning"
+        }
+      ]
+    }
+  },
   "events": { "url": "/tui/events", "transport": "sse" },
   "theme": {
     "default": {
@@ -56,6 +88,10 @@ Only `name` is required. `commands` drive client-side completion; they do not au
 
 `actions` declares optional presentation triggers. The host must separately register the implementation for each action id in the PromptKit constructor. Declaring an action in the manifest never grants it behavior on its own.
 
+`feedback.before` and `feedback.error` are optional declarative `PromptKitSnapshot` templates. They let the backend choose visible feedback without requiring browser callbacks. Supported template values are documented in `docs/actions.md`; unknown or malformed placeholders make the manifest invalid.
+
+`actionUi` optionally customizes generic chooser and no-match presentation. If `chooserLabel` is omitted, PromptKit uses only the selected filenames as a language-neutral label. If `noMatch` is omitted, PromptKit keeps a generic safe warning.
+
 ### Drop action trigger
 
 The first generic action trigger is `drop`:
@@ -70,7 +106,7 @@ The first generic action trigger is `drop`:
 
 `accept` may contain file extensions, exact MIME types, MIME wildcards, or exact file names. An empty or omitted `accept` accepts any file. `multiple` defaults to `false`.
 
-If one registered action matches a drop, PromptKit invokes it immediately. If several match, PromptKit shows a terminal-style chooser. If none match, PromptKit renders a warning instead of guessing application behavior.
+If one registered action matches a drop, PromptKit invokes it immediately. If several match, PromptKit shows a terminal-style chooser. If none match, PromptKit renders the configured `actionUi.noMatch` snapshot or a generic warning.
 
 ## `POST /tui/command`
 
@@ -249,7 +285,7 @@ Theme selection is explicitly separate through `themeVariant`. Presentation indi
 
 ## Host action registry
 
-Action definitions are declarative. Behavior is always registered host-side:
+Action definitions are declarative. Behavior is always registered host-side. The constructor remains intentionally small:
 
 ```ts
 const kit = new PromptKit({
@@ -264,12 +300,16 @@ const kit = new PromptKit({
     },
     "open-sync": async ({ indicator }) => {
       openSyncDetails(indicator.id);
+      return undefined;
     }
   }
 });
+
+await kit.start();
+kit.ready();
 ```
 
-An action may return the same generic presentation fields used elsewhere: `blocks`, `state`, `themeVariant`, `indicators`, and `clear`. `runAction(id, payload?)` invokes the same registry manually with a `manual` trigger context.
+An action may return the same generic presentation fields used elsewhere: `blocks`, `state`, `themeVariant`, `indicators`, and `clear`. A handler that has no presentation result returns `undefined`. Any present result must satisfy `PromptKitActionResult` and is validated at runtime. `runAction(id, payload?)` invokes the same registry manually with a `manual` trigger context.
 
 ## Applying updates from other sources
 

@@ -73,7 +73,7 @@ describe("PromptKitActions", () => {
   });
 
   it("supports MIME rules, multiple files and rejects unmatched drops", async () => {
-    const upload = vi.fn();
+    const upload = vi.fn(() => undefined);
     const { actions, applied } = setup(
       [
         {
@@ -92,7 +92,7 @@ describe("PromptKitActions", () => {
     drop([new File(["x"], "x.txt", { type: "text/plain" })]);
     expect(applied.at(-1)?.blocks?.[0]).toEqual({
       type: "text",
-      text: "nessuna azione disponibile per i file selezionati",
+      text: "No matching action",
       tone: "warning",
     });
 
@@ -100,9 +100,9 @@ describe("PromptKitActions", () => {
   });
 
   it("supports unconstrained, exact filename and exact MIME accept rules", async () => {
-    const any = vi.fn();
-    const exactName = vi.fn();
-    const exactMime = vi.fn();
+    const any = vi.fn(() => undefined);
+    const exactName = vi.fn(() => undefined);
+    const exactMime = vi.fn(() => undefined);
 
     const unrestricted = setup(
       [{ id: "any", triggers: [{ type: "drop" }] }],
@@ -133,7 +133,7 @@ describe("PromptKitActions", () => {
   });
 
   it("rejects empty accept rules and multiple files when multiple is not enabled", () => {
-    const emptyRuleHandler = vi.fn();
+    const emptyRuleHandler = vi.fn(() => undefined);
     const emptyRule = setup(
       [{ id: "empty-rule", triggers: [{ type: "drop", accept: ["   "] }] }],
       { "empty-rule": emptyRuleHandler },
@@ -143,7 +143,7 @@ describe("PromptKitActions", () => {
     expect(emptyRule.applied.at(-1)?.blocks?.[0]).toMatchObject({ tone: "warning" });
     emptyRule.actions.destroy();
 
-    const singleHandler = vi.fn();
+    const singleHandler = vi.fn(() => undefined);
     const single = setup(
       [{ id: "single", triggers: [{ type: "drop", accept: [".json"] }] }],
       { single: singleHandler },
@@ -179,7 +179,7 @@ describe("PromptKitActions", () => {
   });
 
   it("ignores an empty drop even when drop actions are configured", () => {
-    const handler = vi.fn();
+    const handler = vi.fn(() => undefined);
     const { actions, applied } = setup(
       [{ id: "import", triggers: [{ type: "drop" }] }],
       { import: handler },
@@ -193,8 +193,8 @@ describe("PromptKitActions", () => {
   });
 
   it("shows a chooser when more than one drop action matches", async () => {
-    const first = vi.fn();
-    const second = vi.fn();
+    const first = vi.fn(() => undefined);
+    const second = vi.fn(() => undefined);
     const { root, actions } = setup(
       [
         { id: "first", label: "prima", triggers: [{ type: "drop", accept: [".json"] }] },
@@ -206,7 +206,8 @@ describe("PromptKitActions", () => {
     const file = new File(["{}"], "data.json", { type: "application/json" });
     drop([file]);
     const chooser = root.querySelector(".pk-action-chooser");
-    expect(chooser?.textContent).toContain("file: data.json");
+    expect(chooser?.textContent).toContain("data.json");
+    expect(chooser?.textContent).not.toContain("file:");
     expect(root.querySelectorAll(".pk-action-choice")).toHaveLength(2);
 
     (root.querySelector('[data-action="second"]') as HTMLButtonElement).click();
@@ -217,9 +218,9 @@ describe("PromptKitActions", () => {
     actions.destroy();
   });
 
-  it("replaces an existing chooser and uses generic labels for multiple files", async () => {
-    const first = vi.fn();
-    const second = vi.fn();
+  it("replaces an existing chooser and uses language-neutral filenames for multiple files", async () => {
+    const first = vi.fn(() => undefined);
+    const second = vi.fn(() => undefined);
     const { root, actions } = setup(
       [
         { id: "first", triggers: [{ type: "drop", multiple: true }] },
@@ -234,7 +235,7 @@ describe("PromptKitActions", () => {
     ];
     drop(files);
     const originalChooser = root.querySelector(".pk-action-chooser");
-    expect(originalChooser?.textContent).toContain("2 files");
+    expect(originalChooser?.textContent).toContain("a.bin, b.bin");
     expect(root.querySelector('[data-action="first"]')?.textContent).toBe("[first]");
     expect(root.querySelector('[data-action="first"]')?.classList).toContain("pk-tone-primary");
 
@@ -315,8 +316,8 @@ describe("PromptKitActions", () => {
     actions.destroy();
   });
 
-  it("does not apply a result for void handlers and normalizes non-Error failures", async () => {
-    const noop = vi.fn();
+  it("does not apply a result for undefined handlers and normalizes non-Error failures", async () => {
+    const noop = vi.fn(() => undefined);
     const failing = vi.fn().mockRejectedValue("plain failure");
     const { actions, applied } = setup([], { noop, failing });
 

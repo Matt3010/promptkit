@@ -34,6 +34,9 @@ const actions = {
       },
     ],
   }),
+  "reject-files": async () => {
+    throw new Error("demo action failure");
+  },
   "clear-indicators": () => ({ indicators: [] }),
 };
 
@@ -98,7 +101,15 @@ function staticClient(releaseMetadata) {
             label: "inspect JSON files",
             tone: "special",
             triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
-            echo: { type: "drop-files", tone: "secondary" },
+            feedback: {
+              before: {
+                blocks: [{
+                  type: "text",
+                  text: "inspecting {{files.count}} file(s), first: {{files[0].name}}",
+                  tone: "secondary",
+                }],
+              },
+            },
           },
           {
             id: "summarize-files",
@@ -106,7 +117,32 @@ function staticClient(releaseMetadata) {
             tone: "info",
             triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
           },
+          {
+            id: "reject-files",
+            label: "fail with declarative feedback",
+            tone: "danger",
+            triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+            feedback: {
+              error: {
+                blocks: [{
+                  type: "text",
+                  text: "demo failure: {{error.message}}",
+                  tone: "danger",
+                }],
+              },
+            },
+          },
         ],
+        actionUi: {
+          chooserLabel: "choose an action for {{files.count}} dropped file(s)",
+          noMatch: {
+            blocks: [{
+              type: "text",
+              text: "no demo action accepts {{files[0].name}}",
+              tone: "warning",
+            }],
+          },
+        },
         theme: {
           default: {
             accent: "#8b949e",
@@ -158,7 +194,7 @@ function staticClient(releaseMetadata) {
                 ["/theme default", "Return to the default theme"],
                 ["/clear", "Clear terminal output"],
                 ["/error", "Render an unsuccessful command response"],
-                ["drop .json", "Open the generic action chooser and optional file echo"],
+                ["drop .json", "Open the generic chooser and declarative action feedback"],
               ],
             },
           ]);

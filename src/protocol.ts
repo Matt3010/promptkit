@@ -40,23 +40,6 @@ export interface PromptKitDropActionTrigger {
 
 export type PromptKitActionTrigger = PromptKitDropActionTrigger;
 
-export interface PromptKitDropFilesEcho {
-  type: "drop-files";
-  /** Semantic tone used for the terminal echo. Defaults to secondary. */
-  tone?: PromptKitTone;
-}
-
-export type PromptKitActionEcho = PromptKitDropFilesEcho;
-
-export interface PromptKitActionDefinition {
-  id: string;
-  label?: string;
-  tone?: PromptKitTone;
-  triggers?: PromptKitActionTrigger[];
-  /** Optional terminal echo emitted immediately before the action handler runs. */
-  echo?: PromptKitActionEcho;
-}
-
 export interface PromptKitIndicator {
   id: string;
   label: string;
@@ -77,18 +60,6 @@ export interface PromptKitEventSource {
 export interface PromptKitBootstrapSource {
   /** Idempotent GET endpoint returning the initial UI snapshot. */
   url: string;
-}
-
-export interface PromptKitManifest {
-  name: string;
-  prompt?: string;
-  subtitle?: string;
-  commands?: string[];
-  theme?: PromptKitTheme;
-  actions?: PromptKitActionDefinition[];
-  /** Optional initial snapshot loaded before the live event stream is opened. */
-  bootstrap?: PromptKitBootstrapSource;
-  events?: PromptKitEventSource;
 }
 
 export interface PromptKitCommandRequest {
@@ -183,6 +154,49 @@ export interface PromptKitSnapshot {
   clear?: boolean;
 }
 
+/**
+ * Declarative action feedback. Every string may contain supported context
+ * placeholders such as {{files[0].name}}, {{indicator.label}} or
+ * {{error.message}}. PromptKit resolves the template before applying it.
+ */
+export interface PromptKitActionFeedback {
+  /** Optional feedback applied immediately before the action handler runs. */
+  before?: PromptKitSnapshot;
+  /** Optional feedback applied when the action handler fails. */
+  error?: PromptKitSnapshot;
+}
+
+/** Optional presentation overrides for the generic action UI. */
+export interface PromptKitActionUi {
+  /** Template shown above the chooser. Defaults to the selected filenames. */
+  chooserLabel?: string;
+  /** Optional feedback when a drop matches no registered action. */
+  noMatch?: PromptKitSnapshot;
+}
+
+export interface PromptKitActionDefinition {
+  id: string;
+  label?: string;
+  tone?: PromptKitTone;
+  triggers?: PromptKitActionTrigger[];
+  /** Declarative presentation feedback; action semantics stay in the handler. */
+  feedback?: PromptKitActionFeedback;
+}
+
+export interface PromptKitManifest {
+  name: string;
+  prompt?: string;
+  subtitle?: string;
+  commands?: string[];
+  theme?: PromptKitTheme;
+  actions?: PromptKitActionDefinition[];
+  /** Optional presentation overrides shared by generic action UI. */
+  actionUi?: PromptKitActionUi;
+  /** Optional initial snapshot loaded before the live event stream is opened. */
+  bootstrap?: PromptKitBootstrapSource;
+  events?: PromptKitEventSource;
+}
+
 export interface PromptKitEvent extends PromptKitSnapshot {
   id?: string;
 }
@@ -198,6 +212,7 @@ export function isPromptKitManifest(value: unknown): value is PromptKitManifest 
   if (value.actions !== undefined) {
     if (!Array.isArray(value.actions) || !value.actions.every(isActionDefinition)) return false;
   }
+  if (value.actionUi !== undefined && !isActionUi(value.actionUi)) return false;
   if (value.bootstrap !== undefined && !isBootstrapSource(value.bootstrap)) return false;
   if (value.events !== undefined && !isEventSource(value.events)) return false;
   return true;
@@ -300,11 +315,62 @@ function isActionDefinition(value: unknown): value is PromptKitActionDefinition 
   if (!isRecord(value) || typeof value.id !== "string" || value.id.length === 0) return false;
   if (value.label !== undefined && typeof value.label !== "string") return false;
   if (!validTone(value.tone)) return false;
+  if (value.echo !== undefined) return false;
   if (value.triggers !== undefined) {
     if (!Array.isArray(value.triggers) || !value.triggers.every(isActionTrigger)) return false;
   }
-  if (value.echo !== undefined && !isActionEcho(value.echo)) return false;
+  if (value.feedback !== undefined && !isActionFeedback(value.feedback)) return false;
   return true;
+}
+
+function isActionFeedback(value: unknown): value is PromptKitActionFeedback {
+  if (!isRecord(value)) return false;
+  if (value.before !== undefined && !isFeedbackTemplate(value.before)) return false;
+  if (value.error !== undefined && !isFeedbackTemplate(value.error)) return false;
+  return true;
+}
+
+function isActionUi(value: unknown): value is PromptKitActionUi {
+  if (!isRecord(value)) return false;
+  if (value.chooserLabel !== undefined) {
+    if (typeof value.chooserLabel !== "string" || !validTemplateString(value.chooserLabel)) return false;
+  }
+  if (value.noMatch !== undefined && !isFeedbackTemplate(value.noMatch)) return false;
+  return true;
+}
+
+function isFeedbackTemplate(value: unknown): value is PromptKitSnapshot {
+  return isPromptKitSnapshot(value) && validTemplates(value);
+}
+
+function validTemplates(value: unknown): boolean {
+  if (typeof value === "string") return validTemplateString(value);
+  if (Array.isArray(value)) return value.every(validTemplates);
+  if (!isRecord(value)) return true;
+  return Object.values(value).every(validTemplates);
+}
+
+function validTemplateString(value: string): boolean {
+  const tokenPattern = /\{\{\s*([^{}]+?)\s*\}\}/gu;
+  let match: RegExpExecArray | null;
+  let consumed = "";
+  let cursor = 0;
+
+  while ((match = tokenPattern.exec(value)) !== null) {
+    consumed += value.slice(cursor, match.index);
+    cursor = match.index + match[0].length;
+    if (!validTemplateToken(match[1] ?? "")) return false;
+  }
+  consumed += value.slice(cursor);
+  return !consumed.includes("{{") && !consumed.includes("}}");
+}
+
+function validTemplateToken(raw: string): boolean {
+  const token = raw.trim();
+  if (token === "action.id" || token === "action.label") return true;
+  if (token === "files.count" || token === "indicator.id" || token === "indicator.label") return true;
+  if (token === "error.message" || token === "payload") return true;
+  return /^files\[\d+\]\.(?:name|type|size)$/u.test(token);
 }
 
 function isActionTrigger(value: unknown): value is PromptKitActionTrigger {
@@ -314,10 +380,6 @@ function isActionTrigger(value: unknown): value is PromptKitActionTrigger {
     if (!Array.isArray(value.accept) || !value.accept.every((item) => typeof item === "string")) return false;
   }
   return true;
-}
-
-function isActionEcho(value: unknown): value is PromptKitActionEcho {
-  return isRecord(value) && value.type === "drop-files" && validTone(value.tone);
 }
 
 function isIndicator(value: unknown): value is PromptKitIndicator {
