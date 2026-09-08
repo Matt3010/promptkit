@@ -37,7 +37,15 @@ const manifest = {
       label: "inspect JSON files",
       tone: "special",
       triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
-      echo: { type: "drop-files", tone: "secondary" },
+      feedback: {
+        before: {
+          blocks: [{
+            type: "text",
+            text: "inspecting {{files.count}} file(s), first: {{files[0].name}}",
+            tone: "secondary",
+          }],
+        },
+      },
     },
     {
       id: "summarize-files",
@@ -45,7 +53,32 @@ const manifest = {
       tone: "info",
       triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
     },
+    {
+      id: "reject-files",
+      label: "fail with declarative feedback",
+      tone: "danger",
+      triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+      feedback: {
+        error: {
+          blocks: [{
+            type: "text",
+            text: "demo failure: {{error.message}}",
+            tone: "danger",
+          }],
+        },
+      },
+    },
   ],
+  actionUi: {
+    chooserLabel: "choose an action for {{files.count}} dropped file(s)",
+    noMatch: {
+      blocks: [{
+        type: "text",
+        text: "no demo action accepts {{files[0].name}}",
+        tone: "warning",
+      }],
+    },
+  },
   theme: {
     default: {
       accent: "#58d6a8",
@@ -91,7 +124,7 @@ const commandHandlers = new Map([
           ["/theme default", "return to the default theme"],
           ["/clear", "clear terminal output"],
           ["/error", "unsuccessful command response"],
-          ["drop .json", "open the generic action chooser and optional file echo"],
+          ["drop .json", "open the generic chooser and declarative action feedback"],
         ],
       },
     ],
