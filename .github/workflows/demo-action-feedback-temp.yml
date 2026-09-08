@@ -1,0 +1,187 @@
+name: demo-action-feedback-temp
+
+on:
+  push:
+    branches:
+      - feat/declarative-action-feedback
+    paths:
+      - .github/workflows/demo-action-feedback-temp.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/declarative-action-feedback
+
+      - name: Update demo contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          demo = Path('examples/demo/demo.js')
+          text = demo.read_text()
+          text = text.replace(
+              '  "clear-indicators": () => ({ indicators: [] }),\n',
+              '  "reject-files": async () => {\n    throw new Error("demo action failure");\n  },\n  "clear-indicators": () => ({ indicators: [] }),\n',
+              1,
+          )
+          old = '''          {
+            id: "inspect-files",
+            label: "inspect JSON files",
+            tone: "special",
+            triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+            echo: { type: "drop-files", tone: "secondary" },
+          },
+          {
+            id: "summarize-files",
+            label: "summarize JSON files",
+            tone: "info",
+            triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+          },
+        ],'''
+          new = '''          {
+            id: "inspect-files",
+            label: "inspect JSON files",
+            tone: "special",
+            triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+            feedback: {
+              before: {
+                blocks: [{
+                  type: "text",
+                  text: "inspecting {{files.count}} file(s), first: {{files[0].name}}",
+                  tone: "secondary",
+                }],
+              },
+            },
+          },
+          {
+            id: "summarize-files",
+            label: "summarize JSON files",
+            tone: "info",
+            triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+          },
+          {
+            id: "reject-files",
+            label: "fail with declarative feedback",
+            tone: "danger",
+            triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+            feedback: {
+              error: {
+                blocks: [{
+                  type: "text",
+                  text: "demo failure: {{error.message}}",
+                  tone: "danger",
+                }],
+              },
+            },
+          },
+        ],
+        actionUi: {
+          chooserLabel: "choose an action for {{files.count}} dropped file(s)",
+          noMatch: {
+            blocks: [{
+              type: "text",
+              text: "no demo action accepts {{files[0].name}}",
+              tone: "warning",
+            }],
+          },
+        },'''
+          if old not in text:
+              raise SystemExit('static demo action block not found')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              'open the generic action chooser and optional file echo',
+              'open the generic chooser and declarative action feedback',
+          )
+          demo.write_text(text)
+
+          server = Path('examples/demo/server.mjs')
+          text = server.read_text()
+          old = '''    {
+      id: "inspect-files",
+      label: "inspect JSON files",
+      tone: "special",
+      triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+      echo: { type: "drop-files", tone: "secondary" },
+    },
+    {
+      id: "summarize-files",
+      label: "summarize JSON files",
+      tone: "info",
+      triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+    },
+  ],'''
+          new = '''    {
+      id: "inspect-files",
+      label: "inspect JSON files",
+      tone: "special",
+      triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+      feedback: {
+        before: {
+          blocks: [{
+            type: "text",
+            text: "inspecting {{files.count}} file(s), first: {{files[0].name}}",
+            tone: "secondary",
+          }],
+        },
+      },
+    },
+    {
+      id: "summarize-files",
+      label: "summarize JSON files",
+      tone: "info",
+      triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+    },
+    {
+      id: "reject-files",
+      label: "fail with declarative feedback",
+      tone: "danger",
+      triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+      feedback: {
+        error: {
+          blocks: [{
+            type: "text",
+            text: "demo failure: {{error.message}}",
+            tone: "danger",
+          }],
+        },
+      },
+    },
+  ],
+  actionUi: {
+    chooserLabel: "choose an action for {{files.count}} dropped file(s)",
+    noMatch: {
+      blocks: [{
+        type: "text",
+        text: "no demo action accepts {{files[0].name}}",
+        tone: "warning",
+      }],
+    },
+  },'''
+          if old not in text:
+              raise SystemExit('server demo action block not found')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              'open the generic action chooser and optional file echo',
+              'open the generic chooser and declarative action feedback',
+          )
+          server.write_text(text)
+          PY
+
+      - name: Commit demo update
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add examples/demo/demo.js examples/demo/server.mjs
+          git commit -m "docs: demonstrate declarative action feedback"
+          git push origin HEAD:feat/declarative-action-feedback
