@@ -40,11 +40,21 @@ export interface PromptKitDropActionTrigger {
 
 export type PromptKitActionTrigger = PromptKitDropActionTrigger;
 
+export interface PromptKitDropFilesEcho {
+  type: "drop-files";
+  /** Semantic tone used for the terminal echo. Defaults to secondary. */
+  tone?: PromptKitTone;
+}
+
+export type PromptKitActionEcho = PromptKitDropFilesEcho;
+
 export interface PromptKitActionDefinition {
   id: string;
   label?: string;
   tone?: PromptKitTone;
   triggers?: PromptKitActionTrigger[];
+  /** Optional terminal echo emitted immediately before the action handler runs. */
+  echo?: PromptKitActionEcho;
 }
 
 export interface PromptKitIndicator {
@@ -293,6 +303,7 @@ function isActionDefinition(value: unknown): value is PromptKitActionDefinition 
   if (value.triggers !== undefined) {
     if (!Array.isArray(value.triggers) || !value.triggers.every(isActionTrigger)) return false;
   }
+  if (value.echo !== undefined && !isActionEcho(value.echo)) return false;
   return true;
 }
 
@@ -303,6 +314,10 @@ function isActionTrigger(value: unknown): value is PromptKitActionTrigger {
     if (!Array.isArray(value.accept) || !value.accept.every((item) => typeof item === "string")) return false;
   }
   return true;
+}
+
+function isActionEcho(value: unknown): value is PromptKitActionEcho {
+  return isRecord(value) && value.type === "drop-files" && validTone(value.tone);
 }
 
 function isIndicator(value: unknown): value is PromptKitIndicator {
