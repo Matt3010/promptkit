@@ -21,7 +21,9 @@ jobs:
           node-version: 22
           cache: npm
       - name: Apply feature migration
-        run: python3 scripts/remote-actions-migration.py
+        run: |
+          python3 scripts/remote-actions-migration.py
+          python3 scripts/remote-actions-post.py
       - name: Install dependencies
         run: npm ci
       - name: Verify PromptKit
