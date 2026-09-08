@@ -2,25 +2,20 @@ import type {
   PromptKitActionDefinition,
   PromptKitBlock,
   PromptKitIndicator,
-  PromptKitState,
+  PromptKitSnapshot,
 } from "./protocol.js";
+import { isPromptKitSnapshot } from "./protocol.js";
 
 export type PromptKitActionContext =
   | { trigger: "drop"; files: File[] }
   | { trigger: "indicator"; indicator: PromptKitIndicator }
   | { trigger: "manual"; payload?: unknown };
 
-export interface PromptKitActionResult {
-  blocks?: PromptKitBlock[];
-  state?: PromptKitState;
-  themeVariant?: string | null;
-  indicators?: PromptKitIndicator[];
-  clear?: boolean;
-}
+export type PromptKitActionResult = PromptKitSnapshot;
 
 export type PromptKitActionHandler = (
   context: PromptKitActionContext,
-) => void | PromptKitActionResult | Promise<void | PromptKitActionResult>;
+) => PromptKitActionResult | undefined | Promise<PromptKitActionResult | undefined>;
 
 export interface PromptKitActionsOptions {
   root: HTMLElement;
@@ -104,9 +99,16 @@ export class PromptKitActions {
     const handler = this.#handlers[id];
     if (!handler) throw new Error(`PromptKit action handler not found: ${id}`);
 
+    const definition = this.#definitions.find((candidate) => candidate.id === id);
+    if (definition?.echo) this.#echo(definition, context);
+
     try {
       const result = await handler(context);
-      if (result) this.#applyResult(result);
+      if (result === undefined) return;
+      if (!isPromptKitSnapshot(result)) {
+        throw new Error(`PromptKit action handler returned an invalid result: ${id}`);
+      }
+      this.#applyResult(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.#applyResult({ blocks: [{ type: "text", text: message, tone: "danger" }] });
@@ -123,6 +125,24 @@ export class PromptKitActions {
     this.#chooser = null;
     this.#indicators.remove();
     delete this.#root.dataset.dragging;
+  }
+
+  #echo(definition: PromptKitActionDefinition, context: PromptKitActionContext): void {
+    const echo = definition.echo;
+    if (!echo) return;
+
+    switch (echo.type) {
+      case "drop-files": {
+        if (context.trigger !== "drop" || context.files.length === 0) return;
+        const text = context.files.length === 1
+          ? `file: ${context.files[0]?.name ?? ""}`
+          : `files: ${context.files.map((file) => file.name).join(", ")}`;
+        this.#applyResult({
+          blocks: [{ type: "text", text, tone: echo.tone ?? "secondary" }],
+        });
+        return;
+      }
+    }
   }
 
   #dropCandidates(files: File[]): DropCandidate[] {
