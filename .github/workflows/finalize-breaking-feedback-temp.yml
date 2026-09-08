@@ -1,0 +1,181 @@
+name: finalize-breaking-feedback-temp
+
+on:
+  push:
+    branches:
+      - feat/declarative-action-feedback
+    paths:
+      - .github/workflows/finalize-breaking-feedback-temp.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/declarative-action-feedback
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Clarify minimal initialization and migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  raise SystemExit(f"anchor not found in {path}: {old[:100]!r}")
+              file.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'README.md',
+              '## Protocol\n',
+              '''## Quick start
+
+PromptKit is intentionally small to initialize. A normal consumer only needs:
+
+```ts
+const kit = new PromptKit({ root });
+
+await kit.start();
+kit.ready();
+```
+
+`start()` loads the manifest, applies an optional bootstrap snapshot, and opens optional live events. The host calls `ready()` when command input may become available.
+
+If the application declares actions, constructor code still contains only application behavior:
+
+```ts
+const kit = new PromptKit({
+  root,
+  actions: {
+    "import-config": async ({ files }) => {
+      await importConfig(files[0]);
+      return undefined;
+    },
+  },
+});
+
+await kit.start();
+kit.ready();
+```
+
+Action labels, chooser wording, pre-action feedback, no-match feedback, and error presentation are declarative manifest data. They do not require extra browser callbacks.
+
+## Protocol
+''',
+          )
+
+          replace_once(
+              'README.md',
+              '''```ts
+const kit = new PromptKit({
+  root,
+  loading: {
+    label: "example-app",
+    text: "starting",
+  },
+});
+
+try {
+  await kit.start();
+  await initializeRemainingHostState();
+  kit.ready();
+} catch {
+  // start() already moves PromptKit into the failed lifecycle state.
+}
+```
+''',
+              '''```ts
+const kit = new PromptKit({ root });
+
+await kit.start();
+kit.ready();
+```
+
+If the host has additional asynchronous initialization that must finish before input becomes available, keep it explicitly between the two lifecycle calls:
+
+```ts
+await kit.start();
+await initializeRemainingHostState();
+kit.ready();
+```
+
+`start()` already moves PromptKit into the failed lifecycle state if PromptKit initialization itself fails. Catch the error only when the host needs additional handling.
+''',
+          )
+
+          replace_once(
+              'docs/actions.md',
+              'Feedback is optional. If it is absent, PromptKit does not invent an action-specific echo. Handler errors still have a generic safe fallback.\n',
+              '''Feedback is optional. If it is absent, PromptKit does not invent an action-specific echo. Handler errors still have a generic safe fallback.
+
+## Migrating from 0.7
+
+PromptKit 0.8 intentionally removes the 0.7 `echo: { "type": "drop-files" }` action field. This breaking change is deliberate: the old field forced PromptKit to own application wording and only worked for one drop-specific presentation.
+
+Replace it with declarative `feedback.before`:
+
+```json
+{
+  "feedback": {
+    "before": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "file: {{files[0].name}}",
+          "tone": "secondary"
+        }
+      ]
+    }
+  }
+}
+```
+
+The browser handler does not change. `undefined` remains the explicit no-response value; any present handler result must satisfy `PromptKitActionResult`.
+''',
+          )
+
+          # Make the quick-start contract a smoke-tested part of the public integration docs.
+          smoke = Path('scripts/smoke-action-feedback.mjs')
+          text = smoke.read_text()
+          if 'const readme = readFileSync("README.md", "utf8");' not in text:
+              text = text.replace(
+                  'const protocol = readFileSync("src/protocol.ts", "utf8");\n',
+                  'const protocol = readFileSync("src/protocol.ts", "utf8");\nconst readme = readFileSync("README.md", "utf8");\n',
+                  1,
+              )
+          anchor = 'assert(demo.includes("await kit.start();\\n  kit.ready();"), "reference initialization is no longer the simple start/ready flow");\n'
+          addition = anchor + 'assert(readme.includes("const kit = new PromptKit({ root });\\n\\nawait kit.start();\\nkit.ready();"), "README no longer leads with the minimal PromptKit setup");\n'
+          if 'README no longer leads with the minimal PromptKit setup' not in text:
+              if anchor not in text:
+                  raise SystemExit('smoke initialization anchor not found')
+              text = text.replace(anchor, addition, 1)
+          smoke.write_text(text)
+          PY
+
+      - name: Verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          npm run verify
+
+      - name: Commit final docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/actions.md scripts/smoke-action-feedback.mjs
+          git commit -m "docs: clarify PromptKit setup and 0.8 migration"
+          git push origin HEAD:feat/declarative-action-feedback
