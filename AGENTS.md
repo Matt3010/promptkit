@@ -54,11 +54,95 @@ The PromptKit wire protocol is deliberately versionless. Do not add a protocol-v
 
 Compatibility is governed by the PromptKit release that a consumer pins. Within a compatible release line, prefer additive optional fields and new independently renderable block types that older consumers can safely ignore. Any change that makes a previously valid request or response invalid is a breaking protocol change and must follow the breaking-change process above.
 
+## Consumer ergonomics
+
+PromptKit must remain simple to initialize and integrate.
+
+The minimal happy path should stay conceptually close to:
+
+```ts
+const kit = new PromptKit({ root });
+
+await kit.start();
+kit.ready();
+```
+
+Do not require consumer-side callbacks or imperative glue for behavior that can reasonably be expressed declaratively through the manifest or protocol.
+
+Consumer callbacks should be reserved for genuine application-specific logic, not for standard PromptKit presentation, transport, feedback, chooser labels, formatting, or lifecycle orchestration.
+
+When introducing a public feature, evaluate its integration cost as part of the API design. Prefer a slightly more capable declarative contract over forcing every consumer to repeat the same glue code.
+
+## Library and host responsibility boundary
+
+PromptKit owns generic UI and interaction mechanics. Applications own domain semantics.
+
+PromptKit may own:
+
+- rendering and layout;
+- lifecycle;
+- bootstrap and live-update transport;
+- generic actions and action transport;
+- generic feedback and template resolution;
+- indicators and themes;
+- accessibility and keyboard behavior;
+- browser packaging.
+
+PromptKit must not absorb application-specific:
+
+- business rules;
+- persistence semantics;
+- command meanings;
+- domain-state meanings;
+- application-specific wording or labels when they can be supplied by the host.
+
+Do not hardcode consumer-specific text such as application wording around filenames, domain errors, or localized business messages in the core. Prefer declarative manifest-provided presentation.
+
+## Public contract typing and runtime validation
+
+Public PromptKit contracts must be explicit and strongly typed.
+
+When an API may intentionally produce no result, prefer an explicit union such as:
+
+```ts
+PromptKitActionResult | undefined
+```
+
+over `void` when `void` would make accidental return values type-compatible.
+
+Data crossing a network or other untyped runtime boundary must not be trusted only because an equivalent TypeScript type exists. Validate manifests, snapshots, action results, live events, and other wire payloads at runtime before applying them.
+
+When adding a new protocol field, update its TypeScript type, runtime validator, tests, demo where applicable, and documentation together.
+
+## Mutating transport safety
+
+Never transparently retry a mutating or potentially non-idempotent operation unless the public contract explicitly guarantees idempotency.
+
+In particular, generic `POST`, `PUT`, `PATCH`, or `DELETE` commands and actions must not gain automatic retry behavior merely for convenience.
+
+Retries for idempotent reads such as bootstrap may be considered separately, but their semantics must remain explicit and tested.
+
 ## Tests
 
 Compatibility behavior should be protected by tests whenever practical. When fixing or extending an existing public contract, add a regression test that demonstrates the previous valid behavior still works.
 
 Do not update tests merely to make an incompatible implementation pass unless the breaking change has first been explicitly identified and approved.
+
+## Quality gates
+
+Never lower an existing coverage threshold, typecheck requirement, smoke test, validation scope, or other quality gate merely to make a change pass.
+
+If new logic reduces coverage or exposes a failing branch, add meaningful tests or correct the implementation instead of weakening the gate.
+
+Temporary migration scripts or GitHub Actions workflows may be used when needed, but they must not be merged into the default branch unless they are intended to become permanent project infrastructure.
+
+## Distribution parity
+
+A public browser feature is not complete until it is available through the supported browser distribution, not only through source modules.
+
+Changes to public browser-facing behavior must keep package exports, browser bundle, distributed assets, smoke tests, demo, and documentation aligned.
+
+Do not treat a locally built consumer copy as proof that a released PromptKit artifact contains the feature.
 
 ## Reference demo completeness
 
