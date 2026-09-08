@@ -138,6 +138,7 @@ export class PromptKit {
       screen: this.#screen,
       line: this.#line,
       handlers: options.actions,
+      remoteHandler: (definition, context) => this.#client.action(definition.id, definition.remote!, context),
       applyResult: (result) => this.#applyUpdate(result),
     });
 

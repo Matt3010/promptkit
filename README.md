@@ -389,3 +389,27 @@ The release workflow:
 7. dispatches the GitHub Pages workflow for the published tag.
 
 This keeps consumers pinned to an immutable PromptKit release rather than `master`. Applications can vendor the release archive at build/package time and serve its static assets without requiring Node at runtime, or consume the package interface directly when appropriate.
+
+## Server-backed actions
+
+The minimal initialization remains unchanged:
+
+```js
+const kit = new PromptKit({ root });
+await kit.start();
+kit.ready();
+```
+
+For application operations that belong on the backend, declare a remote action in the manifest instead of writing repeated browser transport glue:
+
+```json
+{
+  "id": "import-config",
+  "triggers": [{ "type": "drop", "accept": [".json"] }],
+  "remote": { "url": "/tui/actions/import-config" }
+}
+```
+
+PromptKit sends remote actions with POST, transports dropped files as multipart data, validates the returned `PromptKitActionResult`, and applies it through the normal update pipeline. Mutating actions are never retried automatically. See `docs/actions.md` for the wire shape and error semantics.
+
+The local HTTP demo exercises the real remote transport. The static GitHub Pages demo cannot provide a server-backed POST endpoint, so that transport-specific part is intentionally local-only.

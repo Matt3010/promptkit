@@ -68,6 +68,53 @@ const manifest = {
         },
       },
     },
+    {
+      id: "remote-manual",
+      label: "remote manual",
+      remote: { url: "/tui/actions/manual" },
+      feedback: {
+        before: {
+          blocks: [{ type: "text", text: "calling remote manual action", tone: "secondary" }],
+        },
+      },
+    },
+    {
+      id: "remote-import",
+      label: "remote import",
+      tone: "success",
+      triggers: [{ type: "drop", accept: [".remote.json"], multiple: true }],
+      remote: { url: "/tui/actions/import" },
+      feedback: {
+        before: {
+          blocks: [{ type: "text", text: "uploading {{files.count}} file(s)", tone: "secondary" }],
+        },
+      },
+    },
+    {
+      id: "remote-error",
+      label: "remote error",
+      tone: "danger",
+      triggers: [{ type: "drop", accept: [".remote-error"] }],
+      remote: { url: "/tui/actions/error" },
+      feedback: {
+        error: {
+          blocks: [{ type: "text", text: "remote error: {{error.message}}", tone: "danger" }],
+        },
+      },
+    },
+    {
+      id: "remote-invalid",
+      label: "remote invalid result",
+      tone: "warning",
+      triggers: [{ type: "drop", accept: [".remote-invalid"] }],
+      remote: { url: "/tui/actions/invalid" },
+      feedback: {
+        error: {
+          blocks: [{ type: "text", text: "validation error: {{error.message}}", tone: "danger" }],
+        },
+      },
+    },
+    { id: "remote-no-content", remote: { url: "/tui/actions/no-content" } },
   ],
   actionUi: {
     chooserLabel: "choose an action for {{files.count}} dropped file(s)",
@@ -264,6 +311,58 @@ const server = createServer(async (request, response) => {
     });
   }
 
+  if (request.method === "POST" && url.pathname === "/tui/actions/manual") {
+    const body = await readJson(request);
+    if (!body || body.action !== "remote-manual" || body.trigger !== "manual") {
+      return json(response, 400, { error: "invalid remote manual action request" });
+    }
+    return json(response, 200, {
+      blocks: [{
+        type: "text",
+        text: `remote manual success: ${JSON.stringify(body.payload ?? null)}`,
+        tone: "success",
+      }],
+      state: { remoteManual: true },
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/tui/actions/import") {
+    const contentType = String(request.headers["content-type"] ?? "");
+    if (!contentType.startsWith("multipart/form-data; boundary=")) {
+      return json(response, 400, { error: "expected multipart/form-data" });
+    }
+    const body = await readBuffer(request);
+    if (
+      !body.includes(Buffer.from('name="action"')) ||
+      !body.includes(Buffer.from("remote-import")) ||
+      !body.includes(Buffer.from('name="trigger"')) ||
+      !body.includes(Buffer.from("drop")) ||
+      !body.includes(Buffer.from('name="files"'))
+    ) {
+      return json(response, 400, { error: "missing generic action multipart fields" });
+    }
+    return json(response, 200, {
+      blocks: [{ type: "text", text: "remote file upload success", tone: "success" }],
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/tui/actions/error") {
+    await readBuffer(request);
+    return json(response, 422, { error: "demo remote failure" });
+  }
+
+  if (request.method === "POST" && url.pathname === "/tui/actions/invalid") {
+    await readBuffer(request);
+    return json(response, 200, { invented: true });
+  }
+
+  if (request.method === "POST" && url.pathname === "/tui/actions/no-content") {
+    await readBuffer(request);
+    response.writeHead(204);
+    response.end();
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/tui/command") {
     const body = await readJson(request);
     if (!body || typeof body.input !== "string") return json(response, 400, { error: "expected { input: string }" });
@@ -365,4 +464,15 @@ function serveStatic(pathname, response) {
   };
   response.writeHead(200, { "content-type": contentTypes[extname(file)] ?? "application/octet-stream" });
   createReadStream(file).pipe(response);
+}
+
+async function readBuffer(request) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > 2 * 1024 * 1024) throw new Error("request too large");
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }

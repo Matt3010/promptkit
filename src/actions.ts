@@ -18,9 +18,20 @@ export type PromptKitActionContext =
 
 export type PromptKitActionResult = PromptKitSnapshot;
 
+const ACTION_RESULT_KEYS = new Set(["blocks", "state", "themeVariant", "indicators", "clear"]);
+
+export function isPromptKitActionResult(value: unknown): value is PromptKitActionResult {
+  return isPromptKitSnapshot(value) && Object.keys(value).every((key) => ACTION_RESULT_KEYS.has(key));
+}
+
 export type PromptKitActionHandler = (
   context: PromptKitActionContext,
 ) => PromptKitActionResult | undefined | Promise<PromptKitActionResult | undefined>;
+
+export type PromptKitRemoteActionHandler = (
+  definition: PromptKitActionDefinition,
+  context: PromptKitActionContext,
+) => Promise<PromptKitActionResult | undefined>;
 
 export interface PromptKitActionsOptions {
   root: HTMLElement;
@@ -28,6 +39,7 @@ export interface PromptKitActionsOptions {
   screen: HTMLElement;
   line: HTMLElement;
   handlers?: Record<string, PromptKitActionHandler> | undefined;
+  remoteHandler?: PromptKitRemoteActionHandler | undefined;
   applyResult: (result: PromptKitActionResult) => void;
 }
 
@@ -41,6 +53,7 @@ export class PromptKitActions {
   readonly #screen: HTMLElement;
   readonly #line: HTMLElement;
   readonly #handlers: Record<string, PromptKitActionHandler>;
+  readonly #remoteHandler: PromptKitRemoteActionHandler | undefined;
   readonly #applyResult: (result: PromptKitActionResult) => void;
   readonly #indicators: HTMLDivElement;
 
@@ -55,6 +68,7 @@ export class PromptKitActions {
     this.#screen = options.screen;
     this.#line = options.line;
     this.#handlers = options.handlers ?? {};
+    this.#remoteHandler = options.remoteHandler;
     this.#applyResult = options.applyResult;
 
     this.#indicators = this.#document.createElement("div");
@@ -72,6 +86,11 @@ export class PromptKitActions {
     ui: PromptKitActionUi = {},
   ): void {
     this.#assertAlive();
+    for (const definition of definitions) {
+      if (definition.remote !== undefined && this.#handlers[definition.id] !== undefined) {
+        throw new Error(`PromptKit action cannot be both local and remote: ${definition.id}`);
+      }
+    }
     this.#definitions = [...definitions];
     this.#ui = { ...ui };
   }
@@ -83,7 +102,7 @@ export class PromptKitActions {
     for (const indicator of indicators) {
       if (indicator.active === false) continue;
       const actionId = indicator.action;
-      const actionable = actionId !== undefined && this.#handlers[actionId] !== undefined;
+      const actionable = actionId !== undefined && this.#isRunnableId(actionId);
       const element = actionable
         ? this.#document.createElement("button")
         : this.#document.createElement("span");
@@ -106,19 +125,21 @@ export class PromptKitActions {
 
   public async run(id: string, context: PromptKitActionContext = { trigger: "manual" }): Promise<void> {
     this.#assertAlive();
-    const handler = this.#handlers[id];
-    if (!handler) throw new Error(`PromptKit action handler not found: ${id}`);
-
     const definition = this.#definitions.find((candidate) => candidate.id === id);
+    const handler = this.#handlers[id];
+    const remote = definition?.remote !== undefined ? this.#remoteHandler : undefined;
+    if (!handler && !remote) throw new Error(`PromptKit action handler not found: ${id}`);
 
     try {
       if (definition?.feedback?.before) {
         this.#applyTemplate(definition.feedback.before, this.#templateValues(definition, context));
       }
 
-      const result = await handler(context);
+      const result = handler
+        ? await handler(context)
+        : await remote!(definition!, context);
       if (result === undefined) return;
-      if (!isPromptKitSnapshot(result)) {
+      if (!isPromptKitActionResult(result)) {
         throw new Error(`PromptKit action handler returned an invalid result: ${id}`);
       }
       this.#applyResult(result);
@@ -187,7 +208,7 @@ export class PromptKitActions {
 
   #dropCandidates(files: File[]): DropCandidate[] {
     return this.#definitions.flatMap((definition) => {
-      if (!this.#handlers[definition.id]) return [];
+      if (!this.#isRunnable(definition)) return [];
       const candidates: DropCandidate[] = [];
       for (const trigger of definition.triggers ?? []) {
         if (trigger.type !== "drop") continue;
@@ -202,9 +223,22 @@ export class PromptKitActions {
   #hasDropActions(): boolean {
     return this.#definitions.some(
       (definition) =>
-        this.#handlers[definition.id] !== undefined &&
+        this.#isRunnable(definition) &&
         (definition.triggers ?? []).some((trigger) => trigger.type === "drop"),
     );
+  }
+
+  #isRunnable(definition: PromptKitActionDefinition): boolean {
+    return (
+      this.#handlers[definition.id] !== undefined ||
+      (definition.remote !== undefined && this.#remoteHandler !== undefined)
+    );
+  }
+
+  #isRunnableId(id: string): boolean {
+    if (this.#handlers[id] !== undefined) return true;
+    const definition = this.#definitions.find((candidate) => candidate.id === id);
+    return definition?.remote !== undefined && this.#remoteHandler !== undefined;
   }
 
   #showChooser(candidates: DropCandidate[], files: File[]): void {

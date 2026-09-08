@@ -154,3 +154,23 @@ The manifest may customize chooser and no-match presentation once for all action
 ```
 
 If `chooserLabel` is omitted, PromptKit uses only the selected filenames, which is language-neutral. If `noMatch` is omitted, PromptKit shows a generic warning. Applications that care about wording or localization can override it without adding browser callbacks.
+
+## Remote actions
+
+An action may be implemented by the browser host through the existing `actions` registry or declared as server-backed in the manifest:
+
+```json
+{
+  "id": "import-config",
+  "triggers": [{ "type": "drop", "accept": [".json"], "multiple": false }],
+  "remote": { "url": "/tui/actions/import-config" }
+}
+```
+
+Remote actions always use `POST`; the manifest intentionally has no HTTP-method field. PromptKit does not retry them automatically because actions may have side effects. A future transport extension can be added without changing this default.
+
+For `manual` and `indicator` contexts PromptKit sends JSON containing `action`, `trigger`, and the relevant `payload` or `indicator`. Drop contexts use `multipart/form-data` with `action`, `trigger`, and repeated `files` fields containing the original browser `File` objects. PromptKit does not read or interpret file contents.
+
+A successful response must be a valid `PromptKitActionResult`. `204 No Content` is the explicit no-result response and maps to `undefined`. Invalid JSON or an invalid result is a protocol error and flows through the normal declarative `feedback.error` path.
+
+An action id cannot be both locally implemented and remote. PromptKit rejects that ambiguous configuration instead of applying hidden precedence.
