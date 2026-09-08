@@ -350,7 +350,7 @@ function validTemplates(value: unknown): boolean {
 }
 
 function validTemplateString(value: string): boolean {
-  const tokenPattern = /{{\s*([^{}]+?)\s*}}/gu;
+  const tokenPattern = /\{\{\s*([^{}]+?)\s*\}\}/gu;
   let match: RegExpExecArray | null;
   let consumed = "";
   let cursor = 0;
@@ -369,7 +369,7 @@ function validTemplateToken(raw: string): boolean {
   if (token === "action.id" || token === "action.label") return true;
   if (token === "files.count" || token === "indicator.id" || token === "indicator.label") return true;
   if (token === "error.message" || token === "payload") return true;
-  return /^files\[\d+]\.(?:name|type|size)$/u.test(token);
+  return /^files\[\d+\]\.(?:name|type|size)$/u.test(token);
 }
 
 function isActionTrigger(value: unknown): value is PromptKitActionTrigger {

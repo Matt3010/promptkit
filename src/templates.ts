@@ -28,7 +28,7 @@ export function resolvePromptKitTextTemplate(
   template: string,
   values: PromptKitTemplateValues,
 ): string {
-  return template.replace(/{{\s*([^{}]+?)\s*}}/gu, (_match, raw: string) => resolveToken(raw.trim(), values));
+  return template.replace(/\{\{\s*([^{}]+?)\s*\}\}/gu, (_match, raw: string) => resolveToken(raw.trim(), values));
 }
 
 function resolveValue(value: unknown, values: PromptKitTemplateValues): unknown {
@@ -63,7 +63,7 @@ function resolveToken(token: string, values: PromptKitTemplateValues): string {
 }
 
 function resolveFileToken(token: string, files: File[] | undefined): string {
-  const match = /^files\[(\d+)]\.(name|type|size)$/u.exec(token);
+  const match = /^files\[(\d+)\]\.(name|type|size)$/u.exec(token);
   if (!match) throw new Error(`PromptKit feedback template token is unsupported: ${token}`);
   const index = Number(match[1]);
   const file = files?.[index];
