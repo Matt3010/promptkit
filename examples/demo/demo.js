@@ -98,6 +98,7 @@ function staticClient(releaseMetadata) {
             label: "inspect JSON files",
             tone: "special",
             triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+            echo: { type: "drop-files", tone: "secondary" },
           },
           {
             id: "summarize-files",
@@ -157,7 +158,7 @@ function staticClient(releaseMetadata) {
                 ["/theme default", "Return to the default theme"],
                 ["/clear", "Clear terminal output"],
                 ["/error", "Render an unsuccessful command response"],
-                ["drop .json", "Open the generic action chooser"],
+                ["drop .json", "Open the generic action chooser and optional file echo"],
               ],
             },
           ]);
