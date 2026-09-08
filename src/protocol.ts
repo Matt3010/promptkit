@@ -62,6 +62,11 @@ export interface PromptKitBootstrapSource {
   url: string;
 }
 
+export interface PromptKitRemoteAction {
+  /** POST endpoint receiving the generic PromptKit action context. */
+  url: string;
+}
+
 export interface PromptKitCommandRequest {
   input: string;
 }
@@ -179,6 +184,8 @@ export interface PromptKitActionDefinition {
   label?: string;
   tone?: PromptKitTone;
   triggers?: PromptKitActionTrigger[];
+  /** Optional server-backed implementation. Remote actions always use POST. */
+  remote?: PromptKitRemoteAction;
   /** Declarative presentation feedback; action semantics stay in the handler. */
   feedback?: PromptKitActionFeedback;
 }
@@ -306,6 +313,15 @@ function isEventSource(value: unknown): value is PromptKitEventSource {
   );
 }
 
+function isRemoteAction(value: unknown): value is PromptKitRemoteAction {
+  return (
+    isRecord(value) &&
+    typeof value.url === "string" &&
+    value.url.length > 0 &&
+    Object.keys(value).every((key) => key === "url")
+  );
+}
+
 function validBlockIdentity(value: Record<string, unknown>): boolean {
   if (value.id !== undefined && (typeof value.id !== "string" || value.id.length === 0)) return false;
   return value.update === undefined || value.update === "append" || value.update === "replace";
@@ -319,6 +335,7 @@ function isActionDefinition(value: unknown): value is PromptKitActionDefinition 
   if (value.triggers !== undefined) {
     if (!Array.isArray(value.triggers) || !value.triggers.every(isActionTrigger)) return false;
   }
+  if (value.remote !== undefined && !isRemoteAction(value.remote)) return false;
   if (value.feedback !== undefined && !isActionFeedback(value.feedback)) return false;
   return true;
 }

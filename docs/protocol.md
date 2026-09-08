@@ -363,3 +363,17 @@ SSE is intentionally only the current transport, not part of event semantics. Fu
 ## Compatibility rule
 
 The wire contract is intentionally small and versionless. Prefer additive optional fields and independently renderable block types. If a release intentionally invalidates a previously accepted payload, that is a breaking PromptKit release and must be explicitly communicated with a migration path before implementation.
+
+### Remote action transport
+
+`PromptKitActionDefinition.remote` is an optional object with exactly one field, `url`. Its transport is always HTTP `POST`; no protocol version or method field is added.
+
+Manual request JSON:
+
+```json
+{ "action": "refresh", "trigger": "manual", "payload": { "force": true } }
+```
+
+Indicator request JSON includes the current indicator under `indicator`. Drop requests are `multipart/form-data` with string fields `action`, `trigger=drop`, and one or more repeated `files` parts.
+
+The response contract is the same structured snapshot used by `PromptKitActionResult`. HTTP 204 means that the action intentionally produced no result. Every non-204 success response is decoded as JSON and validated at runtime before PromptKit applies it.

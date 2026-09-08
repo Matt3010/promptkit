@@ -1,4 +1,9 @@
 import {
+  isPromptKitActionResult,
+  type PromptKitActionContext,
+  type PromptKitActionResult,
+} from "./actions.js";
+import {
   isPromptKitCommandResponse,
   isPromptKitEvent,
   isPromptKitManifest,
@@ -8,6 +13,7 @@ import {
   type PromptKitEvent,
   type PromptKitEventSource,
   type PromptKitManifest,
+  type PromptKitRemoteAction,
   type PromptKitSnapshot,
 } from "./protocol.js";
 
@@ -73,6 +79,34 @@ export class PromptKitClient {
     return value;
   }
 
+  /** Execute a server-backed action. Mutating POST requests are never retried. */
+  public async action(
+    id: string,
+    source: PromptKitRemoteAction,
+    context: PromptKitActionContext,
+    signal?: AbortSignal,
+  ): Promise<PromptKitActionResult | undefined> {
+    const response = await this.#fetch(
+      this.#url(source.url),
+      withSignal(remoteActionRequest(id, context), signal),
+    );
+
+    if (response.status === 204) return undefined;
+
+    const value: unknown = await response.json().catch(() => {
+      throw new PromptKitProtocolError(`PromptKit endpoint returned non-JSON (${response.status})`);
+    });
+
+    if (!response.ok) {
+      const detail = extractError(value);
+      throw new PromptKitProtocolError(detail ?? `PromptKit endpoint failed with HTTP ${response.status}`);
+    }
+    if (!isPromptKitActionResult(value)) {
+      throw new PromptKitProtocolError(`invalid PromptKit action result: ${id}`);
+    }
+    return value;
+  }
+
   /** Open the manifest event channel. A string remains supported and means SSE. */
   public events(
     source: string | PromptKitEventSource,
@@ -134,4 +168,36 @@ function extractError(value: unknown): string | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const candidate = (value as Record<string, unknown>).error;
   return typeof candidate === "string" ? candidate : null;
+}
+
+function remoteActionRequest(id: string, context: PromptKitActionContext): RequestInit {
+  switch (context.trigger) {
+    case "drop": {
+      const body = new FormData();
+      body.append("action", id);
+      body.append("trigger", context.trigger);
+      for (const file of context.files) body.append("files", file);
+      return { method: "POST", body };
+    }
+    case "indicator":
+      return jsonPost({ action: id, trigger: context.trigger, indicator: context.indicator });
+    case "manual":
+      return jsonPost({
+        action: id,
+        trigger: context.trigger,
+        ...(context.payload === undefined ? {} : { payload: context.payload }),
+      });
+    default: {
+      const unsupported: never = context;
+      throw new PromptKitProtocolError(`unsupported PromptKit action context: ${String(unsupported)}`);
+    }
+  }
+}
+
+function jsonPost(value: unknown): RequestInit {
+  return {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(value),
+  };
 }

@@ -50,6 +50,10 @@ const kit = new PromptKit({
 try {
   await kit.start();
   kit.ready();
+  if (!release) {
+    await kit.runAction("remote-manual", { source: "demo startup" });
+    await kit.runAction("remote-no-content");
+  }
 } catch {
   // start() already exposes the failed lifecycle state.
 }

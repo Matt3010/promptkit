@@ -1,9 +1,10 @@
-export { PromptKitActions } from "./actions.js";
+export { PromptKitActions, isPromptKitActionResult } from "./actions.js";
 export type {
   PromptKitActionContext,
   PromptKitActionHandler,
   PromptKitActionResult,
   PromptKitActionsOptions,
+  PromptKitRemoteActionHandler,
 } from "./actions.js";
 export { PromptKitClient, PromptKitProtocolError } from "./client.js";
 export type { PromptKitClientOptions } from "./client.js";
@@ -42,6 +43,7 @@ export type {
   PromptKitEventTransport,
   PromptKitIndicator,
   PromptKitManifest,
+  PromptKitRemoteAction,
   PromptKitSnapshot,
   PromptKitState,
   PromptKitTheme,
