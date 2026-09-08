@@ -24,6 +24,7 @@ const manifest = {
     "/separator",
     "/replace",
     "/indicators",
+    "/tones",
     "/theme cool",
     "/theme warm",
     "/theme default",
@@ -83,11 +84,12 @@ const commandHandlers = new Map([
           ["/separator", "separator block"],
           ["/replace", "keyed in-place replacement"],
           ["/indicators", "pulse, hidden and actionable indicators"],
+          ["/tones", "all semantic tones"],
           ["/theme cool", "switch to the cool theme variant"],
           ["/theme warm", "switch to the warm theme variant"],
           ["/theme default", "return to the default theme"],
           ["/clear", "clear terminal output"],
-          ["/error", "danger output"],
+          ["/error", "unsuccessful command response"],
           ["drop .json", "open the generic action chooser"],
         ],
       },
@@ -179,6 +181,18 @@ const commandHandlers = new Map([
       { id: "hidden", label: "hidden", tone: "secondary", active: false },
     ],
   })],
+  ["/tones", () => ({
+    ok: true,
+    blocks: [
+      { type: "text", text: "primary", tone: "primary" },
+      { type: "text", text: "secondary", tone: "secondary" },
+      { type: "text", text: "success", tone: "success" },
+      { type: "text", text: "warning", tone: "warning" },
+      { type: "text", text: "danger", tone: "danger" },
+      { type: "text", text: "info", tone: "info" },
+      { type: "text", text: "special", tone: "special" },
+    ],
+  })],
   ["/theme cool", () => ({
     ok: true,
     blocks: [{ type: "text", text: "cool theme", tone: "primary" }],
@@ -212,6 +226,7 @@ const server = createServer(async (request, response) => {
     return json(response, 200, {
       blocks: [{ type: "status", label: "bootstrap", value: "loaded", tone: "success" }],
       state: { bootstrap: "loaded" },
+      indicators: [{ id: "bootstrap", label: "bootstrapped", tone: "success" }],
     });
   }
 
@@ -234,7 +249,18 @@ const server = createServer(async (request, response) => {
       "cache-control": "no-cache",
       connection: "keep-alive",
     });
-    response.write(`data: ${JSON.stringify({ id: crypto.randomUUID(), state: { realtime: true } })}\n\n`);
+    response.write(`data: ${JSON.stringify({
+      id: crypto.randomUUID(),
+      blocks: [{
+        type: "status",
+        id: "connection",
+        update: "replace",
+        label: "live events",
+        value: "connected",
+        tone: "success",
+      }],
+      state: { realtime: true },
+    })}\n\n`);
     clients.add(response);
     request.on("close", () => clients.delete(response));
     return;
