@@ -59,3 +59,17 @@ Compatibility is governed by the PromptKit release that a consumer pins. Within 
 Compatibility behavior should be protected by tests whenever practical. When fixing or extending an existing public contract, add a regression test that demonstrates the previous valid behavior still works.
 
 Do not update tests merely to make an incompatible implementation pass unless the breaking change has first been explicitly identified and approved.
+
+## Reference demo completeness
+
+The reference demo is part of PromptKit's public integration contract, not decorative sample code.
+
+Every public PromptKit feature that can be meaningfully demonstrated must have a concrete, verifiable example in `examples/demo/`. This includes new block types, update semantics, lifecycle/bootstrap behavior, themes, actions, indicators, transports, and other public presentation capabilities.
+
+When adding or changing a public feature:
+
+- update the reference demo in the same change when the feature is demonstrable;
+- keep the local HTTP demo and the GitHub Pages/static demo aligned where the capability is applicable to both;
+- add or extend smoke checks so important demo capabilities cannot silently disappear;
+- do not claim that the demo covers every public feature while a demonstrable public feature is missing;
+- if a feature cannot reasonably be demonstrated in one of the demo modes, document that limitation explicitly rather than silently omitting it.
