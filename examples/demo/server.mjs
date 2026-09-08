@@ -37,6 +37,7 @@ const manifest = {
       label: "inspect JSON files",
       tone: "special",
       triggers: [{ type: "drop", accept: [".json", "application/json"], multiple: true }],
+      echo: { type: "drop-files", tone: "secondary" },
     },
     {
       id: "summarize-files",
@@ -90,7 +91,7 @@ const commandHandlers = new Map([
           ["/theme default", "return to the default theme"],
           ["/clear", "clear terminal output"],
           ["/error", "unsuccessful command response"],
-          ["drop .json", "open the generic action chooser"],
+          ["drop .json", "open the generic action chooser and optional file echo"],
         ],
       },
     ],
