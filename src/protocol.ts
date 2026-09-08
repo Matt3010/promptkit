@@ -315,6 +315,7 @@ function isActionDefinition(value: unknown): value is PromptKitActionDefinition 
   if (!isRecord(value) || typeof value.id !== "string" || value.id.length === 0) return false;
   if (value.label !== undefined && typeof value.label !== "string") return false;
   if (!validTone(value.tone)) return false;
+  if (value.echo !== undefined) return false;
   if (value.triggers !== undefined) {
     if (!Array.isArray(value.triggers) || !value.triggers.every(isActionTrigger)) return false;
   }
