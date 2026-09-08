@@ -87,6 +87,30 @@ An action may declare `feedback.before` and `feedback.error`. Each one is a norm
 
 Feedback is optional. If it is absent, PromptKit does not invent an action-specific echo. Handler errors still have a generic safe fallback.
 
+## Migrating from 0.7
+
+PromptKit 0.8 intentionally removes the 0.7 `echo: { "type": "drop-files" }` action field. This breaking change is deliberate: the old field forced PromptKit to own application wording and only worked for one drop-specific presentation.
+
+Replace it with declarative `feedback.before`:
+
+```json
+{
+  "feedback": {
+    "before": {
+      "blocks": [
+        {
+          "type": "text",
+          "text": "file: {{files[0].name}}",
+          "tone": "secondary"
+        }
+      ]
+    }
+  }
+}
+```
+
+The browser handler does not change. `undefined` remains the explicit no-response value; any present handler result must satisfy `PromptKitActionResult`.
+
 ## Template context
 
 PromptKit resolves only a small, validated set of placeholders:
