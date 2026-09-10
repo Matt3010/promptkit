@@ -77,6 +77,9 @@ export class PromptKitRenderer {
           block.behavior ?? "manual",
         );
         break;
+      case "link":
+        element = this.#link(block.label, block.href, block.tone);
+        break;
       case "separator":
         element = this.#separator();
         break;
@@ -197,6 +200,24 @@ export class PromptKitRenderer {
     button.textContent = label;
     button.addEventListener("click", () => this.#onDownload(filename, content, mediaType));
     return button;
+  }
+
+  /**
+   * Opens in a new context, always.
+   *
+   * A terminal holds session state — scrollback, indicators, an open live
+   * connection — and navigating it away to follow a link would discard all of
+   * it. `noopener` keeps the destination from reaching back through
+   * `window.opener`.
+   */
+  #link(label: string, href: string, tone: PromptKitTone | undefined): HTMLElement {
+    const anchor = this.#document.createElement("a");
+    anchor.className = classes("pk-block", "pk-link", toneClass(tone));
+    anchor.textContent = label;
+    anchor.href = href;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    return anchor;
   }
 
   #separator(): HTMLElement {
