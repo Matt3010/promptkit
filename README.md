@@ -384,13 +384,46 @@ The release workflow:
 
 1. verifies that the tag version exactly matches `package.json`;
 2. runs the full `npm run verify` gate;
-3. builds the production `dist/` directory;
-4. packages `dist/`, `README.md`, `LICENSE` and protocol docs into `.zip` and `.tar.gz` archives;
-5. creates SHA-256 checksums;
-6. creates the GitHub Release and attaches the versioned artifacts;
-7. dispatches the GitHub Pages workflow for the published tag.
+3. publishes `@matt3010/promptkit` to GitHub Packages;
+4. builds the production `dist/` directory;
+5. packages `dist/`, `README.md`, `LICENSE` and protocol docs into `.zip` and `.tar.gz` archives;
+6. creates SHA-256 checksums;
+7. creates the GitHub Release and attaches the versioned artifacts;
+8. dispatches the GitHub Pages workflow for the published tag.
 
-This keeps consumers pinned to an immutable PromptKit release rather than `master`. Applications can vendor the release archive at build/package time and serve its static assets without requiring Node at runtime, or consume the package interface directly when appropriate.
+Publishing is deliberately the *only* way a version reaches the registry: pushing a tag is the whole release action, and nothing publishes from a branch, a manual dispatch, or a developer's machine. It runs after the verification gate, because a published version cannot be replaced. Re-running a tag whose version is already published is a no-op rather than a failure.
+
+No registry secret is stored: the workflow publishes with its own `GITHUB_TOKEN` and `packages: write`.
+
+This keeps consumers pinned to an immutable PromptKit release rather than `master`.
+
+## Installing
+
+PromptKit is published to **GitHub Packages**, which requires authentication even for a public package. A consumer needs an `.npmrc` pointing the scope at the registry:
+
+```ini
+@matt3010:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+`GITHUB_TOKEN` here is any personal access token with the `read:packages` scope — in CI, the workflow's own token. Then:
+
+```bash
+npm install @matt3010/promptkit
+```
+
+```ts
+import { PromptKit } from "@matt3010/promptkit";
+```
+
+A host that serves static files can serve the bundle and stylesheet straight out of the installed package instead of mirroring the module graph:
+
+```text
+node_modules/@matt3010/promptkit/dist/promptkit.browser.js
+node_modules/@matt3010/promptkit/dist/styles.css
+```
+
+Applications may also vendor the release archive at build time and serve its static assets without requiring Node at runtime — that path needs no registry credentials at all.
 
 ## Server-backed actions
 
