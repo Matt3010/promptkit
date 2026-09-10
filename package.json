@@ -1,9 +1,28 @@
 {
   "name": "@matt3010/promptkit",
-  "version": "0.10.0",
-  "private": true,
+  "version": "0.10.1",
   "description": "Backend-agnostic web terminal UI with a small structured protocol.",
+  "license": "MIT",
   "type": "module",
+  "keywords": [
+    "terminal",
+    "tui",
+    "web-terminal",
+    "cli-ui",
+    "backend-agnostic"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Matt3010/promptkit.git"
+  },
+  "homepage": "https://github.com/Matt3010/promptkit#readme",
+  "bugs": {
+    "url": "https://github.com/Matt3010/promptkit/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

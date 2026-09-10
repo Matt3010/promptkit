@@ -8,6 +8,9 @@ on:
 permissions:
   actions: write
   contents: write
+  # OIDC, so npm can attach a provenance attestation tying the published
+  # tarball to this workflow run and this commit.
+  id-token: write
 
 jobs:
   release:
@@ -20,6 +23,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
@@ -47,6 +51,29 @@ jobs:
 
       - name: Verify
         run: npm run verify
+
+      # Publishing runs only after the full gate has passed. A version on npm
+      # cannot be replaced, so it must never be the first thing to happen.
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN is not configured, so $VERSION cannot be published." >&2
+            exit 1
+          fi
+
+          # Re-running a tag must not fail the release. npm rejects a duplicate
+          # version, so treat an already-published one as done.
+          if npm view "@matt3010/promptkit@${VERSION}" version >/dev/null 2>&1; then
+            echo "@matt3010/promptkit@${VERSION} is already published; nothing to do."
+            exit 0
+          fi
+
+          npm publish
 
       - name: Build release archives
         shell: bash

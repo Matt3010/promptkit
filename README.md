@@ -384,13 +384,37 @@ The release workflow:
 
 1. verifies that the tag version exactly matches `package.json`;
 2. runs the full `npm run verify` gate;
-3. builds the production `dist/` directory;
-4. packages `dist/`, `README.md`, `LICENSE` and protocol docs into `.zip` and `.tar.gz` archives;
-5. creates SHA-256 checksums;
-6. creates the GitHub Release and attaches the versioned artifacts;
-7. dispatches the GitHub Pages workflow for the published tag.
+3. publishes `@matt3010/promptkit` to npm, with provenance;
+4. builds the production `dist/` directory;
+5. packages `dist/`, `README.md`, `LICENSE` and protocol docs into `.zip` and `.tar.gz` archives;
+6. creates SHA-256 checksums;
+7. creates the GitHub Release and attaches the versioned artifacts;
+8. dispatches the GitHub Pages workflow for the published tag.
 
-This keeps consumers pinned to an immutable PromptKit release rather than `master`. Applications can vendor the release archive at build/package time and serve its static assets without requiring Node at runtime, or consume the package interface directly when appropriate.
+Publishing is deliberately the *only* way a version reaches npm: pushing a tag is the whole release action, and nothing publishes from a branch, a manual dispatch, or a developer's machine. It runs after the verification gate, because a published version cannot be replaced. Re-running a tag whose version is already on npm is a no-op rather than a failure.
+
+The workflow needs an `NPM_TOKEN` repository secret — an npm automation token with publish rights on the `@matt3010` scope.
+
+This keeps consumers pinned to an immutable PromptKit release rather than `master`.
+
+## Installing
+
+```bash
+npm install @matt3010/promptkit
+```
+
+```ts
+import { PromptKit } from "@matt3010/promptkit";
+```
+
+A host that serves static files can serve the bundle and stylesheet straight out of the installed package instead of mirroring the module graph:
+
+```text
+node_modules/@matt3010/promptkit/dist/promptkit.browser.js
+node_modules/@matt3010/promptkit/dist/styles.css
+```
+
+Applications may also vendor the release archive at build time and serve its static assets without requiring Node at runtime.
 
 ## Server-backed actions
 
