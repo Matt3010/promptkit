@@ -238,6 +238,30 @@ A row containing a single cell spans the full table width, which is useful for s
 }
 ```
 
+### Link
+
+```json
+{
+  "type": "link",
+  "label": "Open the market",
+  "href": "https://example.com/market/1.24",
+  "tone": "info"
+}
+```
+
+A link sends the reader somewhere the terminal deliberately does not go itself.
+It renders as an anchor and always opens in a new context, with
+`rel="noopener noreferrer"`: a terminal holds session state — scrollback,
+indicators, an open live connection — and navigating away to follow a link would
+discard all of it.
+
+`href` accepts `http:`, `https:` and `mailto:`, plus destinations relative to the
+page. Any other scheme makes the block invalid, and it is rejected before
+rendering, so a `javascript:` URL arriving over the wire cannot turn presented
+output into script execution.
+
+`tone` is optional; an untoned link uses the theme accent.
+
 ### Separator
 
 ```json

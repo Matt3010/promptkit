@@ -32,6 +32,7 @@ try {
   assert(demoSource.includes("async bootstrap()"), "static release demo does not demonstrate bootstrap");
   assert(demoSource.includes('case "/separator"'), "static release demo does not demonstrate separator blocks");
   assert(demoSource.includes('case "/download-auto"'), "static release demo does not demonstrate auto-download");
+  assert(demoSource.includes('case "/link"'), "static release demo does not demonstrate link blocks");
   assert(demoSource.includes('case "/replace"'), "static release demo does not demonstrate keyed replacement");
   assert(demoSource.includes('case "/indicators"'), "static release demo does not demonstrate indicator options");
   assert(demoSource.includes('case "/tones"'), "static release demo does not demonstrate semantic tones");
@@ -50,6 +51,7 @@ try {
   for (const command of [
     "/table",
     "/download-auto",
+    "/link",
     "/separator",
     "/replace",
     "/indicators",
@@ -92,6 +94,15 @@ try {
   const autoDownload = await command("/download-auto");
   const autoDownloadBlock = autoDownload.blocks?.find((block) => block.type === "download");
   assert(autoDownloadBlock?.behavior === "auto", "automatic download behavior missing");
+
+  const links = await command("/link");
+  const linkBlocks = links.blocks?.filter((block) => block.type === "link") ?? [];
+  assert(linkBlocks.length >= 2, "link blocks missing");
+  assert(
+    linkBlocks.every((block) => typeof block.label === "string" && typeof block.href === "string"),
+    "link blocks must carry a label and a destination",
+  );
+  assert(linkBlocks.some((block) => block.tone !== undefined), "toned link block missing");
 
   const firstReplacement = await command("/replace");
   const secondReplacement = await command("/replace");

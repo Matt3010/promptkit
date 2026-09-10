@@ -1,0 +1,9 @@
+# Check every text file out with LF, on every platform.
+#
+# The smoke checks assert on exact byte sequences that contain LF — for example
+# that the reference demo still leads with `await kit.start();\n  kit.ready();`.
+# On a Windows checkout with `core.autocrlf=true` those files arrive with CRLF
+# and the assertions fail on a clean tree, so the quality gate cannot run.
+#
+# Pinning LF fixes that at the source instead of loosening the assertions.
+* text=auto eol=lf

@@ -21,6 +21,7 @@ const manifest = {
     "/progress",
     "/download",
     "/download-auto",
+    "/link",
     "/separator",
     "/replace",
     "/indicators",
@@ -162,6 +163,7 @@ const commandHandlers = new Map([
           ["/progress", "bounded progress"],
           ["/download", "manual browser download"],
           ["/download-auto", "automatic browser download"],
+          ["/link", "link blocks, toned and plain"],
           ["/separator", "separator block"],
           ["/replace", "keyed in-place replacement"],
           ["/indicators", "pulse, hidden and actionable indicators"],
@@ -232,6 +234,15 @@ const commandHandlers = new Map([
       mediaType: "application/json",
       behavior: "auto",
     }],
+  })],
+  ["/link", () => ({
+    ok: true,
+    blocks: [
+      { type: "text", text: "Links open in a new context so the terminal keeps its state.", tone: "secondary" },
+      { type: "link", label: "PromptKit on GitHub", href: "https://github.com/Matt3010/promptkit" },
+      { type: "link", label: "report an issue", href: "https://github.com/Matt3010/promptkit/issues", tone: "warning" },
+      { type: "link", label: "this demo, served locally", href: "/" },
+    ],
   })],
   ["/separator", () => ({
     ok: true,

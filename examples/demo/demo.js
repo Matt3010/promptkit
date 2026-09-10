@@ -80,6 +80,7 @@ function staticClient(releaseMetadata) {
     "/progress",
     "/download",
     "/download-auto",
+    "/link",
     "/separator",
     "/replace",
     "/indicators",
@@ -189,6 +190,7 @@ function staticClient(releaseMetadata) {
                 ["/progress", "Render a progress block"],
                 ["/download", "Render a manual download block"],
                 ["/download-auto", "Trigger an automatic download block"],
+                ["/link", "Render link blocks, toned and plain"],
                 ["/separator", "Render a separator block"],
                 ["/replace", "Replace a keyed block in place"],
                 ["/indicators", "Show pulse, hidden and actionable indicators"],
@@ -249,6 +251,21 @@ function staticClient(releaseMetadata) {
               content: `PromptKit ${releaseMetadata.tag} automatic download\n`,
               mediaType: "text/plain",
               behavior: "auto",
+            },
+          ]);
+        case "/link":
+          return response([
+            {
+              type: "text",
+              text: "Links open in a new context so the terminal keeps its state.",
+              tone: "secondary",
+            },
+            { type: "link", label: "PromptKit on GitHub", href: "https://github.com/Matt3010/promptkit" },
+            {
+              type: "link",
+              label: "report an issue",
+              href: "https://github.com/Matt3010/promptkit/issues",
+              tone: "warning",
             },
           ]);
         case "/separator":

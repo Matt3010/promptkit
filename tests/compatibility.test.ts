@@ -56,6 +56,7 @@ describe("PromptKit protocol compatibility", () => {
         content: "{}",
         mediaType: "application/json",
       },
+      { type: "link", label: "open docs", href: "https://example.com/docs", tone: "info" },
       { type: "separator" },
     ];
 

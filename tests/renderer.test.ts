@@ -51,6 +51,47 @@ describe("PromptKitRenderer", () => {
     expect(rows[1]?.querySelectorAll("td")).toHaveLength(3);
   });
 
+  it("renders a link as an anchor that cannot reach back through the opener", () => {
+    const renderer = new PromptKitRenderer({ document });
+    const anchor = renderer.render({
+      type: "link",
+      label: "open the market",
+      href: "https://example.com/market/1.24",
+    }) as HTMLAnchorElement;
+
+    expect(anchor.tagName).toBe("A");
+    expect(anchor.className).toContain("pk-link");
+    expect(anchor.textContent).toBe("open the market");
+    expect(anchor.getAttribute("href")).toBe("https://example.com/market/1.24");
+    expect(anchor.target).toBe("_blank");
+    expect(anchor.rel).toBe("noopener noreferrer");
+  });
+
+  it("applies a tone class to a link", () => {
+    const renderer = new PromptKitRenderer({ document });
+    const anchor = renderer.render({
+      type: "link",
+      label: "docs",
+      href: "https://example.com",
+      tone: "info",
+    });
+
+    expect(anchor.className).toContain("pk-tone-info");
+  });
+
+  it("keeps a link addressable for in-place replacement", () => {
+    const renderer = new PromptKitRenderer({ document });
+    const anchor = renderer.render({
+      type: "link",
+      id: "market",
+      update: "replace",
+      label: "docs",
+      href: "https://example.com",
+    });
+
+    expect(anchor.dataset.pkBlockId).toBe("market");
+  });
+
   it("renders downloads through the injected handler", () => {
     const onDownload = vi.fn();
     const renderer = new PromptKitRenderer({ document, onDownload });

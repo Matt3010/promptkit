@@ -66,6 +66,7 @@ describe("PromptKit protocol guards", () => {
     { type: "status", label: "db", value: "healthy", tone: "success" },
     { type: "progress", label: "import", value: 5, max: 10 },
     { type: "download", label: "save", filename: "x.json", content: "{}" },
+    { type: "link", label: "docs", href: "https://example.com/docs" },
     { type: "separator" },
   ])("accepts block %#", (block) => {
     expect(isPromptKitBlock(block)).toBe(true);
@@ -76,6 +77,32 @@ describe("PromptKit protocol guards", () => {
     expect(isPromptKitBlock({ type: "code", code: "x" })).toBe(true);
     expect(isPromptKitBlock({ type: "progress", value: 0 })).toBe(true);
     expect(isPromptKitBlock({ type: "download", label: "x", filename: "x", content: "x", mediaType: "text/plain" })).toBe(true);
+    expect(isPromptKitBlock({ type: "link", label: "x", href: "https://example.com", tone: "info" })).toBe(true);
+  });
+
+  it.each([
+    "https://example.com/market/1.24",
+    "http://localhost:4317/status",
+    "mailto:someone@example.com",
+    "/relative/path",
+    "?query=only",
+  ])("accepts the link destination %s", (href) => {
+    expect(isPromptKitBlock({ type: "link", label: "open", href })).toBe(true);
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "JavaScript:alert(1)",
+    " javascript:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+    "vbscript:msgbox(1)",
+    "file:///etc/passwd",
+    // Malformed enough that parsing throws; it must be rejected, not crash.
+    "http://",
+    "https://%",
+    "",
+  ])("rejects the link destination %j", (href) => {
+    expect(isPromptKitBlock({ type: "link", label: "open", href })).toBe(false);
   });
 
   it("rejects invalid and unknown blocks", () => {
@@ -99,6 +126,10 @@ describe("PromptKit protocol guards", () => {
     expect(isPromptKitBlock({ type: "download", label: "x", filename: 3, content: "x" })).toBe(false);
     expect(isPromptKitBlock({ type: "download", label: "x", filename: "x", content: 3 })).toBe(false);
     expect(isPromptKitBlock({ type: "download", label: "x", filename: "x", content: "x", mediaType: 3 })).toBe(false);
+    expect(isPromptKitBlock({ type: "link", label: 3, href: "https://example.com" })).toBe(false);
+    expect(isPromptKitBlock({ type: "link", label: "x", href: 3 })).toBe(false);
+    expect(isPromptKitBlock({ type: "link", label: "x" })).toBe(false);
+    expect(isPromptKitBlock({ type: "link", label: "x", href: "https://example.com", tone: "bad" })).toBe(false);
     expect(isPromptKitBlock({ type: "widget", value: "x" })).toBe(false);
   });
 

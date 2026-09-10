@@ -122,6 +122,7 @@ PromptKit renders the blocks. It never needs to know what `/list`, `completed` o
 - `status`
 - `progress`
 - `download`
+- `link`
 - `separator`
 
 Unknown block types are rejected by the protocol validator. New types require an explicit compatibility strategy.
@@ -336,6 +337,7 @@ Then open `http://127.0.0.1:4173` and try:
 /progress
 /download
 /download-auto
+/link
 /separator
 /replace
 /indicators

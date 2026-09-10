@@ -123,6 +123,20 @@ export interface DownloadBlock extends PromptKitBlockIdentity {
   behavior?: PromptKitDownloadBehavior;
 }
 
+export interface LinkBlock extends PromptKitBlockIdentity {
+  type: "link";
+  label: string;
+  /**
+   * Absolute or root-relative destination.
+   *
+   * Only `http:`, `https:` and `mailto:` are accepted. A block carrying any
+   * other scheme is invalid, so rendered output cannot become script execution
+   * by way of a `javascript:` URL.
+   */
+  href: string;
+  tone?: PromptKitTone;
+}
+
 export interface SeparatorBlock extends PromptKitBlockIdentity {
   type: "separator";
 }
@@ -134,6 +148,7 @@ export type PromptKitBlock =
   | StatusBlock
   | ProgressBlock
   | DownloadBlock
+  | LinkBlock
   | SeparatorBlock;
 
 export interface PromptKitCommandResponse {
@@ -294,10 +309,36 @@ export function isPromptKitBlock(value: unknown): value is PromptKitBlock {
         (value.mediaType === undefined || typeof value.mediaType === "string") &&
         (value.behavior === undefined || value.behavior === "manual" || value.behavior === "auto")
       );
+    case "link":
+      return (
+        typeof value.label === "string" &&
+        typeof value.href === "string" &&
+        isSafeLinkHref(value.href) &&
+        validTone(value.tone)
+      );
     case "separator":
       return true;
     default:
       return false;
+  }
+}
+
+const SAFE_LINK_SCHEMES = new Set(["http:", "https:", "mailto:"]);
+
+/**
+ * Blocks arrive from the network, so a destination is validated before it is
+ * ever rendered rather than trusted because it is typed as a string.
+ *
+ * Parsing against a base resolves root-relative destinations while still
+ * exposing the real scheme of something like `javascript:alert(1)`.
+ */
+export function isSafeLinkHref(href: string): boolean {
+  if (href.length === 0) return false;
+
+  try {
+    return SAFE_LINK_SCHEMES.has(new URL(href, "https://promptkit.invalid/").protocol);
+  } catch {
+    return false;
   }
 }
 
